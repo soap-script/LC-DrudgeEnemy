@@ -199,6 +199,7 @@ print(color.lightblue + f'Part 3 of 3 complete!{color.purple}\n> Next you will h
 print(color.lightcyan + f'Paste your path: ', end='')
 
 userInputPath = input()
+print('test')
 if not os.path.exists(userInputPath):
    print(color.red + 'Path not found!')
    exitProgram()
