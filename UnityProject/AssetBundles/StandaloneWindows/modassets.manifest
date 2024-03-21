@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 705258104
+CRC: 766969303
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: d84e65e1fece966f4e576a59dca1e204
+    Hash: 71bccb5508fd2f8a69b93450e2662289
   TypeTreeHash:
     serializedVersion: 2
-    Hash: d7f90bbb6c3547fa47e0e7dbb04f2502
+    Hash: 0a030e1cec5ae5f77c4487d8b49f5fc7
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: d84e65e1fece966f4e576a59dca1e204
+    Hash: 71bccb5508fd2f8a69b93450e2662289
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -47,6 +47,8 @@ ClassTypes:
 - Class: 114
   Script: {fileID: 11500000, guid: 04f75356a7e9c978bddc7d568e58a50b, type: 3}
 - Class: 114
+  Script: {fileID: 11500000, guid: 507293d35d7a13e5b9ca9bb60e082e11, type: 3}
+- Class: 114
   Script: {fileID: 11500000, guid: 3c36d0a92cbb1f26a39169ef0eae393a, type: 3}
 - Class: 114
   Script: {fileID: 11500000, guid: 6d7127b8f98ca8ec9896b384a71d39a2, type: 3}
@@ -69,6 +71,12 @@ SerializeReferenceClassIdentifiers:
   ClassName: AISearchRoutine
 - AssemblyName: Assembly-CSharp
   ClassName: EnemyBehaviourState
+- AssemblyName: Assembly-CSharp
+  ClassName: InteractEvent
+- AssemblyName: Assembly-CSharp
+  ClassName: InteractEventFloat
+- AssemblyName: UnityEngine.CoreModule
+  ClassName: UnityEngine.Events.PersistentCallGroup
 Assets:
 - Assets/ExampleEnemy/ExampleEnemy.asset
 - Assets/ExampleEnemy/Bestiary/ExampleEnemyTK.asset

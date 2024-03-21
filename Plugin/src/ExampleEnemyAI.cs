@@ -25,11 +25,15 @@ namespace ExampleEnemy {
         Vector3 StalkPos;
         System.Random enemyRandom;
         bool isDeadAnimationDone;
+        public Transform grabTarget;
         enum State {
             SearchingForPlayer,
-            StickingInFrontOfPlayer,
+            FollowPlayer,
             HeadSwingAttackInProgress,
         }
+
+        public InteractTrigger drudgeTrigger;
+        public GrabbableObject heldItem;
 
         [Conditional("DEBUG")]
         void LogIfDebugBuild(string text) {
@@ -45,9 +49,8 @@ namespace ExampleEnemy {
             positionRandomness = new Vector3(0, 0, 0);
             enemyRandom = new System.Random(StartOfRound.Instance.randomMapSeed + thisEnemyIndex);
             isDeadAnimationDone = false;
-            // NOTE: Add your behavior states in your enemy script in Unity, where you can configure fun stuff
-            // like a voice clip or an sfx clip to play when changing to that specific behavior state.
             currentBehaviourStateIndex = (int)State.SearchingForPlayer;
+            drudgeTrigger.onInteract.AddListener(GrabScrapFromPlayer);
             // We make the enemy start searching. This will make it start wandering around.
             StartSearch(transform.position);
         }
@@ -64,16 +67,36 @@ namespace ExampleEnemy {
                 }
                 return;
             }
+
             timeSinceHittingLocalPlayer += Time.deltaTime;
             timeSinceNewRandPos += Time.deltaTime;
+
             var state = currentBehaviourStateIndex;
-            if(targetPlayer != null && (state == (int)State.StickingInFrontOfPlayer || state == (int)State.HeadSwingAttackInProgress)){
+
+            if(targetPlayer != null && (state == (int)State.FollowPlayer || state == (int)State.HeadSwingAttackInProgress)){
                 turnCompass.LookAt(targetPlayer.gameplayCamera.transform.position);
                 transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(new Vector3(0f, turnCompass.eulerAngles.y, 0f)), 4f * Time.deltaTime);
             }
             if (stunNormalizedTimer > 0f)
             {
                 agent.speed = 0f;
+            }
+
+            UpdateInteractTrigger();
+        }
+
+        private void UpdateInteractTrigger ()
+        {
+            if (!heldItem && GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null)
+            {
+                drudgeTrigger.interactable = true;
+                drudgeTrigger.hoverTip = "Hold [e] to give item";
+                drudgeTrigger.hoverIcon = null;
+            }
+            else
+            {
+                drudgeTrigger.interactable = false;
+                drudgeTrigger.hoverTip = "";
             }
         }
 
@@ -90,11 +113,11 @@ namespace ExampleEnemy {
                     if (FoundClosestPlayerInRange(25f, 3f)){
                         LogIfDebugBuild("Start Target Player");
                         StopSearch(currentSearch);
-                        SwitchToBehaviourClientRpc((int)State.StickingInFrontOfPlayer);
+                        SwitchToBehaviourClientRpc((int)State.FollowPlayer);
                     }
                     break;
 
-                case (int)State.StickingInFrontOfPlayer:
+                case (int)State.FollowPlayer:
                     agent.speed = 5f;
                     // Keep targetting closest player, unless they are over 20 units away and we can't see them.
                     if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
@@ -103,7 +126,7 @@ namespace ExampleEnemy {
                         SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
                         return;
                     }
-                    StickingInFrontOfPlayer();
+                    FollowPlayer();
                     break;
 
                 case (int)State.HeadSwingAttackInProgress:
@@ -114,6 +137,11 @@ namespace ExampleEnemy {
                     LogIfDebugBuild("This Behavior State doesn't exist!");
                     break;
             }
+        }
+
+        void FollowPlayer()
+        {
+            SetDestinationToPosition(targetPlayer.transform.position - Vector3.Scale(new Vector3(-5, 0 -5), targetPlayer.transform.forward), checkForPath: false);
         }
 
         bool FoundClosestPlayerInRange(float range, float senseRange) {
@@ -142,28 +170,6 @@ namespace ExampleEnemy {
             return true;
         }
 
-        void StickingInFrontOfPlayer() {
-            // We only run this method for the host because I'm paranoid about randomness not syncing I guess
-            // This is fine because the game does sync the position of the enemy.
-            // Also the attack is a ClientRpc so it should always sync
-            if (targetPlayer == null || !IsOwner) {
-                return;
-            }
-            if(timeSinceNewRandPos > 0.7f){
-                timeSinceNewRandPos = 0;
-                if(enemyRandom.Next(0, 5) == 0){
-                    // Attack
-                    StartCoroutine(SwingAttack());
-                }
-                else{
-                    // Go in front of player
-                    positionRandomness = new Vector3(enemyRandom.Next(-2, 2), 0, enemyRandom.Next(-2, 2));
-                    StalkPos = targetPlayer.transform.position - Vector3.Scale(new Vector3(-5, 0, -5), targetPlayer.transform.forward) + positionRandomness;
-                }
-                SetDestinationToPosition(StalkPos, checkForPath: false);
-            }
-        }
-
         IEnumerator SwingAttack() {
             SwitchToBehaviourClientRpc((int)State.HeadSwingAttackInProgress);
             StalkPos = targetPlayer.transform.position;
@@ -179,26 +185,84 @@ namespace ExampleEnemy {
             if(currentBehaviourStateIndex != (int)State.HeadSwingAttackInProgress){
                 yield break;
             }
-            SwitchToBehaviourClientRpc((int)State.StickingInFrontOfPlayer);
+            SwitchToBehaviourClientRpc((int)State.FollowPlayer);
         }
 
-        public override void OnCollideWithPlayer(Collider other) {
-            if (timeSinceHittingLocalPlayer < 1f) {
+        public void GrabScrapFromPlayer(PlayerControllerB player)
+        {
+            Plugin.Logger.LogInfo("Attempting to grab scrap from player");
+            if (heldItem != null)
+            {
+                DropScrap(heldItem.GetComponent<NetworkObject>(), heldItem.GetItemFloorPosition(default));
+            }
+            if (player == null) {
+                Plugin.Logger.LogError("Trying to grab scrap, but couldn't find player!");
+            }
+            GrabbableObject component = player.currentlyHeldObjectServer;
+            player.DiscardHeldObject(false, thisNetworkObject, default, true);
+
+            SetItemAsHeldServerRPC(component.GetComponent<NetworkObject>());
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        protected void SetItemAsHeldServerRPC (NetworkObjectReference component)
+        {
+            SetItemAsHeldClientRPC(component);
+        }
+
+        [ClientRpc]
+        protected void SetItemAsHeldClientRPC (NetworkObjectReference componentRef)
+        {
+            // Attempt to get the network object
+            if (componentRef.TryGet(out NetworkObject networkObject, null))
+            {
+                SetItemAsHeld(networkObject);
+            }
+        }
+
+        private void SetItemAsHeld(NetworkObject componentRef)
+        {
+            heldItem = componentRef.GetComponent<GrabbableObject>();
+            heldItem.parentObject = grabTarget;
+            heldItem.hasHitGround = false;
+            heldItem.GrabItemFromEnemy(this);
+            heldItem.isHeldByEnemy = true;
+            heldItem.EnablePhysics(false);
+        }
+
+        private void DropScrap(NetworkObject item, Vector3 targetFloorPosition)
+        {
+            Plugin.Logger.LogInfo("Attempting to drop");
+            if (heldItem == null) return;
+
+            if (heldItem.isHeld)
+            {
+                heldItem.DiscardItemFromEnemy();
+                heldItem.isHeldByEnemy = false;
+                heldItem = null;
                 return;
             }
-            PlayerControllerB playerControllerB = MeetsStandardPlayerCollisionConditions(other);
-            if (playerControllerB != null)
-            {
-                LogIfDebugBuild("Example Enemy Collision with Player!");
-                timeSinceHittingLocalPlayer = 0f;
-                playerControllerB.DamagePlayer(20);
-            }
+
+            heldItem.parentObject = null;
+            heldItem.transform.SetParent(StartOfRound.Instance.propsContainer, true);
+            heldItem.EnablePhysics(true);
+            heldItem.fallTime = 0f;
+            heldItem.startFallingPosition = heldItem.transform.parent.InverseTransformPoint(heldItem.transform.position);
+            heldItem.targetFloorPosition = heldItem.transform.parent.InverseTransformPoint(targetFloorPosition);
+            heldItem.floorYRot = -1;
+            heldItem.DiscardItemFromEnemy();
+            heldItem.isHeldByEnemy = false;
+            heldItem = null;
         }
 
         public override void HitEnemy(int force = 1, PlayerControllerB playerWhoHit = null, bool playHitSFX = false) {
             base.HitEnemy(force, playerWhoHit, playHitSFX);
             if(isEnemyDead){
                 return;
+            }
+            if (heldItem)
+            {
+                heldItem.ItemActivate(true);
             }
             enemyHP -= force;
             if (IsOwner) {
@@ -226,7 +290,7 @@ namespace ExampleEnemy {
             LogIfDebugBuild("SwingAttackHitClientRPC");
             int playerLayer = 1 << 3; // This can be found from the game's Asset Ripper output in Unity
             Collider[] hitColliders = Physics.OverlapBox(attackArea.position, attackArea.localScale, Quaternion.identity, playerLayer);
-            if(hitColliders.Length > 0){
+            if (hitColliders.Length > 0){
                 foreach (var player in hitColliders){
                     PlayerControllerB playerControllerB = MeetsStandardPlayerCollisionConditions(player);
                     if (playerControllerB != null)
