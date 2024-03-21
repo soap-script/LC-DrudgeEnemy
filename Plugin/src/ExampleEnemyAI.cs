@@ -29,6 +29,7 @@ namespace ExampleEnemy {
         enum State {
             SearchingForPlayer,
             FollowPlayer,
+            ChasingPlayer,
             HeadSwingAttackInProgress,
         }
 
@@ -87,7 +88,7 @@ namespace ExampleEnemy {
 
         private void UpdateInteractTrigger ()
         {
-            if (!heldItem && GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null)
+            if (GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null)
             {
                 drudgeTrigger.interactable = true;
                 drudgeTrigger.hoverTip = "Hold [e] to give item";
@@ -109,24 +110,15 @@ namespace ExampleEnemy {
 
             switch(currentBehaviourStateIndex) {
                 case (int)State.SearchingForPlayer:
-                    agent.speed = 3f;
-                    if (FoundClosestPlayerInRange(25f, 3f)){
-                        LogIfDebugBuild("Start Target Player");
-                        StopSearch(currentSearch);
-                        SwitchToBehaviourClientRpc((int)State.FollowPlayer);
-                    }
+                    SearchingForPlayerState();
                     break;
 
                 case (int)State.FollowPlayer:
-                    agent.speed = 5f;
-                    // Keep targetting closest player, unless they are over 20 units away and we can't see them.
-                    if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
-                        LogIfDebugBuild("Stop Target Player");
-                        StartSearch(transform.position);
-                        SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
-                        return;
-                    }
-                    FollowPlayer();
+                    FollowPlayerState();
+                    break;
+
+                case (int)State.ChasingPlayer:
+                    ChasingPlayerState();
                     break;
 
                 case (int)State.HeadSwingAttackInProgress:
@@ -137,6 +129,68 @@ namespace ExampleEnemy {
                     LogIfDebugBuild("This Behavior State doesn't exist!");
                     break;
             }
+        }
+
+        void SearchingForPlayerState()
+        {
+            agent.speed = 3f;
+            if (FoundClosestPlayerInRange(25f, 3f)){
+                LogIfDebugBuild("Start Target Player");
+                StopSearch(currentSearch);
+
+                if (DoesPlayerHaveAnItem(targetPlayer) || heldItem != null)
+                {
+                    SwitchToBehaviourClientRpc((int)State.FollowPlayer);
+                } else
+                {
+                    SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
+                }
+            }
+        }
+
+        void FollowPlayerState()
+        {
+            agent.speed = 5f;
+            // Keep targetting closest player, unless they are over 20 units away and we can't see them.
+            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
+                LogIfDebugBuild("Stop Target Player");
+                StartSearch(transform.position);
+                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                return;
+            }
+            FollowPlayer();
+        }
+
+        void ChasingPlayerState()
+        {
+            agent.speed = 8f;
+            // Keep targetting closest player, unless they are over 20 units away and we can't see them.
+            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
+                LogIfDebugBuild("Stop Target Player");
+                StartSearch(transform.position);
+                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                return;
+            }
+            if (DoesPlayerHaveAnItem(targetPlayer))
+            {
+                LogIfDebugBuild("Follow Target Player");
+                SwitchToBehaviourClientRpc((int)State.FollowPlayer);
+                return;
+            }
+            FollowPlayer();
+        }
+
+        bool DoesPlayerHaveAnItem(PlayerControllerB player)
+        {
+            GrabbableObject[] itemSlots = player.ItemSlots;
+            for (int i = 0; i < itemSlots.Length; i++)
+            {
+                if (itemSlots[i] != null)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         void FollowPlayer()
@@ -193,7 +247,7 @@ namespace ExampleEnemy {
             Plugin.Logger.LogInfo("Attempting to grab scrap from player");
             if (heldItem != null)
             {
-                DropScrap(heldItem.GetComponent<NetworkObject>(), heldItem.GetItemFloorPosition(default));
+                DropItemServerRPC();
             }
             if (player == null) {
                 Plugin.Logger.LogError("Trying to grab scrap, but couldn't find player!");
@@ -230,25 +284,32 @@ namespace ExampleEnemy {
             heldItem.EnablePhysics(false);
         }
 
-        private void DropScrap(NetworkObject item, Vector3 targetFloorPosition)
+        [ServerRpc(RequireOwnership = false)]
+        protected void DropItemServerRPC() {
+            DropItemClientRPC();
+        }
+
+        [ClientRpc]
+        protected void DropItemClientRPC ()
+        {
+            DropItem();
+        }
+
+        private void DropItem()
         {
             Plugin.Logger.LogInfo("Attempting to drop");
-            if (heldItem == null) return;
-
-            if (heldItem.isHeld)
+            if (heldItem == null)
             {
-                heldItem.DiscardItemFromEnemy();
-                heldItem.isHeldByEnemy = false;
-                heldItem = null;
+                Plugin.Logger.LogInfo("Attempted to drop something, but holding nothing!");
                 return;
-            }
+            };
 
             heldItem.parentObject = null;
             heldItem.transform.SetParent(StartOfRound.Instance.propsContainer, true);
             heldItem.EnablePhysics(true);
             heldItem.fallTime = 0f;
             heldItem.startFallingPosition = heldItem.transform.parent.InverseTransformPoint(heldItem.transform.position);
-            heldItem.targetFloorPosition = heldItem.transform.parent.InverseTransformPoint(targetFloorPosition);
+            heldItem.targetFloorPosition = heldItem.transform.parent.InverseTransformPoint(heldItem.GetItemFloorPosition(default));
             heldItem.floorYRot = -1;
             heldItem.DiscardItemFromEnemy();
             heldItem.isHeldByEnemy = false;
@@ -257,26 +318,20 @@ namespace ExampleEnemy {
 
         public override void HitEnemy(int force = 1, PlayerControllerB playerWhoHit = null, bool playHitSFX = false) {
             base.HitEnemy(force, playerWhoHit, playHitSFX);
-            if(isEnemyDead){
+            UseHeldItem();
+        }
+
+        public void UseHeldItem()
+        {
+            if (heldItem == null)
+            {
                 return;
             }
-            if (heldItem)
+            if (heldItem is JetpackItem)
             {
-                heldItem.ItemActivate(true);
+                (heldItem as JetpackItem).ExplodeJetpackServerRpc();
             }
-            enemyHP -= force;
-            if (IsOwner) {
-                if (enemyHP <= 0 && !isEnemyDead) {
-                    // Our death sound will be played through creatureVoice when KillEnemy() is called.
-                    // KillEnemy() will also attempt to call creatureAnimator.SetTrigger("KillEnemy"),
-                    // so we don't need to call a death animation ourselves.
-
-                    StopCoroutine(SwingAttack());
-                    // We need to stop our search coroutine, because the game does not do that by default.
-                    StopCoroutine(searchCoroutine);
-                    KillEnemyOnOwnerClient();
-                }
-            }
+            heldItem.ItemActivate(true);
         }
 
         [ClientRpc]
