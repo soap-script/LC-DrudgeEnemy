@@ -21,6 +21,8 @@ namespace ExampleEnemy {
         #pragma warning restore 0649
         float timeSinceHittingLocalPlayer;
         float timeSinceNewRandPos;
+        float playerEmoteTime;
+        bool hasActedFromEmote;
         Vector3 positionRandomness;
         Vector3 StalkPos;
         System.Random enemyRandom;
@@ -49,6 +51,8 @@ namespace ExampleEnemy {
             timeSinceNewRandPos = 0;
             positionRandomness = new Vector3(0, 0, 0);
             enemyRandom = new System.Random(StartOfRound.Instance.randomMapSeed + thisEnemyIndex);
+            playerEmoteTime = 0;
+            hasActedFromEmote = false;
             isDeadAnimationDone = false;
             currentBehaviourStateIndex = (int)State.SearchingForPlayer;
             drudgeTrigger.onInteract.AddListener(GrabScrapFromPlayer);
@@ -148,6 +152,17 @@ namespace ExampleEnemy {
             }
         }
 
+
+        bool TargetPlayerLookingAtDrudge()
+        {
+            return targetPlayer.HasLineOfSightToPosition(transform.position + Vector3.up * 0.5f);
+        }
+
+        bool TargetPlayerLookingAtGround()
+        {
+            return Vector3.Dot(targetPlayer.gameplayCamera.transform.forward, Vector3.down) > 0.5;
+        }
+
         void FollowPlayerState()
         {
             agent.speed = 5f;
@@ -157,6 +172,32 @@ namespace ExampleEnemy {
                 StartSearch(transform.position);
                 SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
                 return;
+            }
+            if (targetPlayer && targetPlayer.performingEmote && targetPlayer.playerBodyAnimator.GetInteger("emoteNumber") == 2)
+            {
+                playerEmoteTime += Time.deltaTime;
+                LogIfDebugBuild($"Player emote time - {playerEmoteTime}");
+                bool lookingAtDrudge = TargetPlayerLookingAtDrudge();
+                bool lookingAtGround = TargetPlayerLookingAtGround();
+                if (playerEmoteTime > 0.03 && !hasActedFromEmote && (lookingAtDrudge || lookingAtGround))
+                {
+
+                    Plugin.Logger.LogInfo("Player has emoted! Attempting action.");
+                    if (lookingAtGround)
+                    {
+                        DropItemServerRPC();
+                    }
+                    else if (lookingAtDrudge)
+                    { 
+                        UseHeldItem(); 
+                    }
+                    hasActedFromEmote = true;
+                }
+            }
+            else
+            {
+                playerEmoteTime = 0;
+                hasActedFromEmote= false;
             }
             FollowPlayer();
         }
@@ -330,6 +371,8 @@ namespace ExampleEnemy {
             if (heldItem is JetpackItem)
             {
                 (heldItem as JetpackItem).ExplodeJetpackServerRpc();
+                DropItem();
+                return;
             }
             heldItem.ItemActivate(true);
         }
