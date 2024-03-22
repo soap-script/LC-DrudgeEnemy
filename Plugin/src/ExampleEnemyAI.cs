@@ -173,6 +173,18 @@ namespace ExampleEnemy {
                 SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
                 return;
             }
+            if (!DoesPlayerHaveAnItem(targetPlayer))
+            {
+                LogIfDebugBuild("Target player does not have item. Switching to chasing");
+                SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
+                return;
+            }
+            CheckTargetPlayerForEmoteActions();
+            FollowPlayer();
+        }
+
+        void CheckTargetPlayerForEmoteActions ()
+        {
             if (targetPlayer && targetPlayer.performingEmote && targetPlayer.playerBodyAnimator.GetInteger("emoteNumber") == 2)
             {
                 playerEmoteTime += Time.deltaTime;
@@ -197,9 +209,8 @@ namespace ExampleEnemy {
             else
             {
                 playerEmoteTime = 0;
-                hasActedFromEmote= false;
+                hasActedFromEmote = false;
             }
-            FollowPlayer();
         }
 
         void ChasingPlayerState()
