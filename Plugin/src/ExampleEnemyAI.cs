@@ -185,6 +185,7 @@ namespace ExampleEnemy {
 
         void CheckTargetPlayerForEmoteActions ()
         {
+            // test
             if (targetPlayer && targetPlayer.performingEmote && targetPlayer.playerBodyAnimator.GetInteger("emoteNumber") == 2)
             {
                 playerEmoteTime += Time.deltaTime;
@@ -216,7 +217,7 @@ namespace ExampleEnemy {
         void ChasingPlayerState()
         {
             agent.speed = 8f;
-            // Keep targetting closest player, unless they are over 20 units away and we can't see them.
+            // Keep targetting closest player, unless they are over 20 units away and we can't see them
             if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
                 LogIfDebugBuild("Stop Target Player");
                 StartSearch(transform.position);

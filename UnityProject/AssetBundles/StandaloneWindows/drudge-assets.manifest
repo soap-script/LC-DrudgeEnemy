@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1710098742
+CRC: 4250009301
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 3e47277281b088de6ec82a339f600b77
+    Hash: 1984ed5f71f3625a5d498cfe9558ca01
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 0dc048a06d7da6cb3d6161394ef2cb0a
+    Hash: 0a030e1cec5ae5f77c4487d8b49f5fc7
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 3e47277281b088de6ec82a339f600b77
+    Hash: 1984ed5f71f3625a5d498cfe9558ca01
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -53,12 +53,18 @@ ClassTypes:
 - Class: 114
   Script: {fileID: 11500000, guid: 6d7127b8f98ca8ec9896b384a71d39a2, type: 3}
 - Class: 114
+  Script: {fileID: 11500000, guid: 0e80ae96b3eb9177eea5c8f9dadbcda1, type: 3}
+- Class: 114
   Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: d3cecf05b78b173605122a700874719c, type: 3}
 - Class: 115
   Script: {instanceID: 0}
 - Class: 137
   Script: {instanceID: 0}
 - Class: 195
+  Script: {instanceID: 0}
+- Class: 329
   Script: {instanceID: 0}
 SerializeReferenceClassIdentifiers:
 - AssemblyName: Assembly-CSharp
@@ -72,5 +78,8 @@ SerializeReferenceClassIdentifiers:
 - AssemblyName: UnityEngine.CoreModule
   ClassName: UnityEngine.Events.PersistentCallGroup
 Assets:
-- Assets/ExampleEnemy/ExampleEnemy.asset
-Dependencies: []
+- Assets/ExampleEnemy/Bestiary/ExampleEnemyTK.asset
+- Assets/ExampleEnemy/DrudgeEnemy.asset
+- Assets/ExampleEnemy/Bestiary/ExampleEnemyTN.asset
+Dependencies:
+- C:/Users/Jonathan/source/repos/LC-ExampleEnemy/UnityProject/AssetBundles/StandaloneWindows/modassets

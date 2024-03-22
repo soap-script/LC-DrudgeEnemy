@@ -29,8 +29,8 @@ namespace ExampleEnemy {
             // We load the asset bundle that should be next to our DLL file, with the specified name.
             // You may want to rename your asset bundle from the AssetBundle Browser in order to avoid an issue with
             // asset bundle identifiers being the same between multiple bundles, allowing the loading of only one bundle from one mod.
-            // In that case also remember to change the asset bundle copying code in the csproj.user file.
-            var bundleName = "modassets";
+            // In that case also remember to change the asset bundle copying code in the csproj.user file
+            var bundleName = "drudge-assets";
             ModAssets = AssetBundle.LoadFromFile(Path.Combine(Path.GetDirectoryName(Info.Location), bundleName));
             if (ModAssets == null) {
                 Logger.LogError($"Failed to load custom assets.");
@@ -38,7 +38,7 @@ namespace ExampleEnemy {
             }
 
             // We load our assets from our asset bundle. Remember to rename them both here and in our Unity project.
-            var ExampleEnemy = ModAssets.LoadAsset<EnemyType>("ExampleEnemy");
+            var ExampleEnemy = ModAssets.LoadAsset<EnemyType>("DrudgeEnemy");
             var ExampleEnemyTN = ModAssets.LoadAsset<TerminalNode>("ExampleEnemyTN");
             var ExampleEnemyTK = ModAssets.LoadAsset<TerminalKeyword>("ExampleEnemyTK");
             
