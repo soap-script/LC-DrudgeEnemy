@@ -32,11 +32,17 @@ namespace ExampleEnemy {
             SearchingForPlayer,
             FollowPlayer,
             ChasingPlayer,
-            HeadSwingAttackInProgress,
+            AngrilyLookingAtPlayer,
         }
 
         public InteractTrigger drudgeTrigger;
         public GrabbableObject heldItem;
+
+        public AudioClip footstepSFX;
+        public Light drudgeLight;
+        public Light drudgeLightGlow;
+        public float angerLevel;
+        public float angerLevelAccelerator;
 
         [Conditional("DEBUG")]
         void LogIfDebugBuild(string text) {
@@ -56,6 +62,9 @@ namespace ExampleEnemy {
             isDeadAnimationDone = false; 
             currentBehaviourStateIndex = (int)State.SearchingForPlayer;
             drudgeTrigger.onInteract.AddListener(GrabScrapFromPlayer);
+            drudgeLight.enabled = true;
+            angerLevel = 0;
+            angerLevelAccelerator = 1f;
             // We make the enemy start searching. This will make it start wandering around.
             StartSearch(transform.position);
         }
@@ -78,9 +87,9 @@ namespace ExampleEnemy {
 
             var state = currentBehaviourStateIndex;
 
-            if(targetPlayer != null && (state == (int)State.FollowPlayer || state == (int)State.HeadSwingAttackInProgress)){
+            if(targetPlayer != null && (state == (int)State.FollowPlayer || state == (int)State.AngrilyLookingAtPlayer)){
                 turnCompass.LookAt(targetPlayer.gameplayCamera.transform.position);
-                transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(new Vector3(0f, turnCompass.eulerAngles.y, 0f)), 4f * Time.deltaTime);
+                transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(new Vector3(0f, turnCompass.eulerAngles.y, 0f)), 10f * Time.deltaTime);
             }
             if (stunNormalizedTimer > 0f)
             {
@@ -90,31 +99,44 @@ namespace ExampleEnemy {
             
             if (agent.velocity.magnitude > 1f)
             {
-                LogIfDebugBuild($"Moving -- setting animation {agent.velocity.magnitude}");
                 creatureAnimator.SetTrigger("startWalk");
             } else
             {
-                LogIfDebugBuild($"Not moving -- setting animation {agent.velocity.magnitude}");
                 creatureAnimator.SetTrigger("startIdle");
             }
-            
 
+
+            UpdateLightSource();
             UpdateInteractTrigger();
+        }
+
+        private void UpdateAngerLevel()
+        {
+            if ((currentBehaviourStateIndex != (int)State.AngrilyLookingAtPlayer && currentBehaviourStateIndex != (int)State.ChasingPlayer) && angerLevel > 0)
+            {
+                LogIfDebugBuild($"No reason to be angry");
+                angerLevel -= (angerLevelAccelerator * AIIntervalTime);
+            }
         }
 
         private void UpdateInteractTrigger ()
         {
-            if (GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null)
+            if (GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null && currentBehaviourStateIndex == (int)State.FollowPlayer)
             {
                 drudgeTrigger.interactable = true;
                 drudgeTrigger.hoverTip = "Hold [e] to give item";
-                drudgeTrigger.hoverIcon = null;
             }
             else
             {
                 drudgeTrigger.interactable = false;
                 drudgeTrigger.hoverTip = "";
             }
+        }
+        private void UpdateLightSource()
+        {
+            drudgeLight.color = Color.Lerp(Color.white, Color.red, angerLevel);
+            drudgeLight.spotAngle = Mathf.Lerp(50, 20, angerLevel);
+            drudgeLightGlow.color = Color.Lerp(Color.white, Color.red, angerLevel);
         }
 
         public override void DoAIInterval() {
@@ -123,6 +145,8 @@ namespace ExampleEnemy {
             if (isEnemyDead || StartOfRound.Instance.allPlayersDead) {
                 return;
             };
+            UpdateAngerLevel();
+            UpdateMovingTowardsTargetPlayer();
 
             switch(currentBehaviourStateIndex) {
                 case (int)State.SearchingForPlayer:
@@ -137,8 +161,8 @@ namespace ExampleEnemy {
                     ChasingPlayerState();
                     break;
 
-                case (int)State.HeadSwingAttackInProgress:
-                    // We don't care about doing anything here
+                case (int)State.AngrilyLookingAtPlayer:
+                    AngrilyLookingAtPlayerState();
                     break;
                     
                 default:
@@ -159,11 +183,10 @@ namespace ExampleEnemy {
                     SwitchToBehaviourClientRpc((int)State.FollowPlayer);
                 } else
                 {
-                    SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
+                    SwitchToBehaviourClientRpc((int)State.AngrilyLookingAtPlayer);
                 }
             }
         }
-
 
         bool TargetPlayerLookingAtDrudge()
         {
@@ -185,10 +208,10 @@ namespace ExampleEnemy {
                 SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
                 return;
             }
-            if (!DoesPlayerHaveAnItem(targetPlayer))
+            if (!DoesPlayerHaveAnItem(targetPlayer) && !heldItem)
             {
                 LogIfDebugBuild("Target player does not have item. Switching to chasing");
-                SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
+                SwitchToBehaviourClientRpc((int)State.AngrilyLookingAtPlayer);
                 return;
             }
             CheckTargetPlayerForEmoteActions();
@@ -211,6 +234,7 @@ namespace ExampleEnemy {
                     if (lookingAtGround)
                     {
                         DropItemServerRPC();
+                        DoAnimationClientRpc("startDrop");
                     }
                     else if (lookingAtDrudge)
                     { 
@@ -242,7 +266,42 @@ namespace ExampleEnemy {
                 SwitchToBehaviourClientRpc((int)State.FollowPlayer);
                 return;
             }
-            FollowPlayer();
+        }
+
+        void AngrilyLookingAtPlayerState()
+        {
+            LogIfDebugBuild($"Angrily Looking At Player: {angerLevel}");
+            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
+                LogIfDebugBuild("Stop Target Player");
+                StartSearch(transform.position);
+                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                return;
+            }
+            if (DoesPlayerHaveAnItem(targetPlayer) || heldItem != null)
+            {
+                LogIfDebugBuild("Follow Target Player");
+                SwitchToBehaviourClientRpc((int)State.FollowPlayer);
+                return;
+            }
+            angerLevel += (angerLevelAccelerator * AIIntervalTime);
+            if (angerLevel >= 1)
+            {
+                targetPlayer.JumpToFearLevel(1f, true);
+                SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
+                return;
+            }
+        }
+
+        void UpdateMovingTowardsTargetPlayer()
+        {
+            if (targetPlayer && currentBehaviourStateIndex == (int)State.ChasingPlayer)
+            {
+                movingTowardsTargetPlayer = true;
+            } else
+            {
+                movingTowardsTargetPlayer = false;
+            }
+
         }
 
         bool DoesPlayerHaveAnItem(PlayerControllerB player)
@@ -289,24 +348,6 @@ namespace ExampleEnemy {
             return true;
         }
 
-        IEnumerator SwingAttack() {
-            SwitchToBehaviourClientRpc((int)State.HeadSwingAttackInProgress);
-            StalkPos = targetPlayer.transform.position;
-            SetDestinationToPosition(StalkPos);
-            yield return new WaitForSeconds(0.5f);
-            if(isEnemyDead){
-                yield break;
-            }
-            DoAnimationClientRpc("swingAttack");
-            yield return new WaitForSeconds(0.35f);
-            SwingAttackHitClientRpc();
-            // In case the player has already gone away, we just yield break (basically same as return, but for IEnumerator)
-            if(currentBehaviourStateIndex != (int)State.HeadSwingAttackInProgress){
-                yield break;
-            }
-            SwitchToBehaviourClientRpc((int)State.FollowPlayer);
-        }
-
         public void GrabScrapFromPlayer(PlayerControllerB player)
         {
             Plugin.Logger.LogInfo("Attempting to grab scrap from player");
@@ -317,6 +358,7 @@ namespace ExampleEnemy {
             if (player == null) {
                 Plugin.Logger.LogError("Trying to grab scrap, but couldn't find player!");
             }
+            DoAnimationClientRpc("startPickUp");
             GrabbableObject component = player.currentlyHeldObjectServer;
             player.DiscardHeldObject(false, thisNetworkObject, default, true);
 
@@ -341,6 +383,7 @@ namespace ExampleEnemy {
 
         private void SetItemAsHeld(NetworkObject componentRef)
         {
+            ToggleLight();
             heldItem = componentRef.GetComponent<GrabbableObject>();
             heldItem.parentObject = grabTarget;
             heldItem.hasHitGround = false;
@@ -358,6 +401,7 @@ namespace ExampleEnemy {
         protected void DropItemClientRPC ()
         {
             DropItem();
+            ToggleLight();
         }
 
         private void DropItem()
@@ -398,7 +442,7 @@ namespace ExampleEnemy {
                 DropItem();
                 return;
             }
-            heldItem.ItemActivate(true);
+            heldItem.UseItemOnClient(true);
         }
 
         [ClientRpc]
@@ -407,21 +451,24 @@ namespace ExampleEnemy {
             creatureAnimator.SetTrigger(animationName);
         }
 
-        [ClientRpc]
-        public void SwingAttackHitClientRpc() {
-            LogIfDebugBuild("SwingAttackHitClientRPC");
-            int playerLayer = 1 << 3; // This can be found from the game's Asset Ripper output in Unity
-            Collider[] hitColliders = Physics.OverlapBox(attackArea.position, attackArea.localScale, Quaternion.identity, playerLayer);
-            if (hitColliders.Length > 0){
-                foreach (var player in hitColliders){
-                    PlayerControllerB playerControllerB = MeetsStandardPlayerCollisionConditions(player);
-                    if (playerControllerB != null)
-                    {
-                        LogIfDebugBuild("Swing attack hit player!");
-                        timeSinceHittingLocalPlayer = 0f;
-                        playerControllerB.DamagePlayer(40);
-                    }
-                }
+        public void DrudgePlayFootstepAudio()
+        {
+            creatureVoice.PlayOneShot(footstepSFX);
+        }
+
+        private void ToggleLight()
+        {
+            drudgeLight.enabled = !drudgeLight.enabled;
+        }
+
+        public override void OnCollideWithPlayer(Collider other)
+        {
+            base.OnCollideWithPlayer(other);
+            PlayerControllerB playerControllerB = MeetsStandardPlayerCollisionConditions(other);
+
+            if (playerControllerB != null && currentBehaviourStateIndex == (int)State.ChasingPlayer)
+            {
+                playerControllerB.KillPlayer(Vector3.zero, true, CauseOfDeath.Mauling, 1);
             }
         }
     }

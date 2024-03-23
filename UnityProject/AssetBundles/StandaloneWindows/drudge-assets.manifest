@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 2306920145
+CRC: 1323030918
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: d82df6752683a7789ae7ff69bbef86fe
+    Hash: f0d566a6cf90f49ad77f083bcdfab5f7
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 64f71e0cce824b5054f35dd93f8db1b6
+    Hash: dd0b334385e2a91c4468fccd9c4c10fa
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: d82df6752683a7789ae7ff69bbef86fe
+    Hash: f0d566a6cf90f49ad77f083bcdfab5f7
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -34,14 +34,20 @@ ClassTypes:
   Script: {instanceID: 0}
 - Class: 82
   Script: {instanceID: 0}
+- Class: 83
+  Script: {instanceID: 0}
 - Class: 91
   Script: {instanceID: 0}
 - Class: 95
+  Script: {instanceID: 0}
+- Class: 108
   Script: {instanceID: 0}
 - Class: 114
   Script: {fileID: 2106200333, guid: e0a89e6f23bd69e40ab1b6cd831745f1, type: 3}
 - Class: 114
   Script: {fileID: 11500000, guid: 65d3fcb39dd67306e9bb17a603308070, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
 - Class: 114
   Script: {fileID: 11500000, guid: 04f75356a7e9c978bddc7d568e58a50b, type: 3}
 - Class: 114
@@ -73,6 +79,10 @@ SerializeReferenceClassIdentifiers:
   ClassName: InteractEvent
 - AssemblyName: Assembly-CSharp
   ClassName: InteractEventFloat
+- AssemblyName: Unity.RenderPipelines.HighDefinition.Runtime
+  ClassName: UnityEngine.Rendering.HighDefinition.BoolScalableSettingValue
+- AssemblyName: Unity.RenderPipelines.HighDefinition.Runtime
+  ClassName: UnityEngine.Rendering.HighDefinition.IntScalableSettingValue
 - AssemblyName: UnityEngine.CoreModule
   ClassName: UnityEngine.Events.PersistentCallGroup
 Assets:

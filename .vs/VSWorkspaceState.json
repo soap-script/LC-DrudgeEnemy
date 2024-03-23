@@ -1,7 +1,10 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Plugin",
+    "\\Plugin\\src",
+    "\\UnityProject\\Assets"
   ],
-  "SelectedNode": "\\ExampleEnemy.sln",
+  "SelectedNode": "\\Plugin\\src\\ExampleEnemyAI.cs",
   "PreviewInSolutionExplorer": false
 }
