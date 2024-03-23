@@ -77,6 +77,10 @@ crashlytics-build.properties
 # Assemblies
 *.dll*
 
+# UMotion
+UMotionData/
+Assets/[Uu][Mm]otion*
+
 # We allow these dll files because we have the right to redistribute them
 !/[Aa]ssets/Plugins/ExampleEnemy.dll*
 !/[Aa]ssets/Plugins/LethalLib.dll*

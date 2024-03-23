@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 4250009301
+CRC: 2306920145
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 1984ed5f71f3625a5d498cfe9558ca01
+    Hash: d82df6752683a7789ae7ff69bbef86fe
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 0a030e1cec5ae5f77c4487d8b49f5fc7
+    Hash: 64f71e0cce824b5054f35dd93f8db1b6
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 1984ed5f71f3625a5d498cfe9558ca01
+    Hash: d82df6752683a7789ae7ff69bbef86fe
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -33,8 +33,6 @@ ClassTypes:
 - Class: 74
   Script: {instanceID: 0}
 - Class: 82
-  Script: {instanceID: 0}
-- Class: 83
   Script: {instanceID: 0}
 - Class: 91
   Script: {instanceID: 0}
@@ -81,5 +79,4 @@ Assets:
 - Assets/ExampleEnemy/Bestiary/ExampleEnemyTK.asset
 - Assets/ExampleEnemy/DrudgeEnemy.asset
 - Assets/ExampleEnemy/Bestiary/ExampleEnemyTN.asset
-Dependencies:
-- C:/Users/Jonathan/source/repos/LC-ExampleEnemy/UnityProject/AssetBundles/StandaloneWindows/modassets
+Dependencies: []

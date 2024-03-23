@@ -23,7 +23,7 @@ namespace ExampleEnemy {
             // If you don't want your mod to use a configuration file, you can remove this line, Configuration.cs, and other references.
             BoundConfig = new PluginConfig(this);
 
-            // This should be ran before Network Prefabs are registered.
+            // This should be ran before Network Prefabs are registered. 
             InitializeNetworkBehaviours();
 
             // We load the asset bundle that should be next to our DLL file, with the specified name.

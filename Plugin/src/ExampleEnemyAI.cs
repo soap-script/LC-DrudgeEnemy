@@ -45,15 +45,15 @@ namespace ExampleEnemy {
 
         public override void Start() {
             base.Start();
-            LogIfDebugBuild("Example Enemy Spawned");
+            LogIfDebugBuild("Drudge Enemy Spawned");
             timeSinceHittingLocalPlayer = 0;
-            creatureAnimator.SetTrigger("startWalk");
+            creatureAnimator.SetTrigger("startIdle");
             timeSinceNewRandPos = 0;
             positionRandomness = new Vector3(0, 0, 0);
             enemyRandom = new System.Random(StartOfRound.Instance.randomMapSeed + thisEnemyIndex);
             playerEmoteTime = 0;
             hasActedFromEmote = false;
-            isDeadAnimationDone = false;
+            isDeadAnimationDone = false; 
             currentBehaviourStateIndex = (int)State.SearchingForPlayer;
             drudgeTrigger.onInteract.AddListener(GrabScrapFromPlayer);
             // We make the enemy start searching. This will make it start wandering around.
@@ -62,7 +62,7 @@ namespace ExampleEnemy {
 
         public override void Update() {
             base.Update();
-            if(isEnemyDead){
+            if(isEnemyDead){ 
                 // For some weird reason I can't get an RPC to get called from HitEnemy() (works from other methods), so we do this workaround. We just want the enemy to stop playing the song.
                 if(!isDeadAnimationDone){ 
                     LogIfDebugBuild("Stopping enemy voice with janky code.");
@@ -86,6 +86,18 @@ namespace ExampleEnemy {
             {
                 agent.speed = 0f;
             }
+
+            
+            if (agent.velocity.magnitude > 1f)
+            {
+                LogIfDebugBuild($"Moving -- setting animation {agent.velocity.magnitude}");
+                creatureAnimator.SetTrigger("startWalk");
+            } else
+            {
+                LogIfDebugBuild($"Not moving -- setting animation {agent.velocity.magnitude}");
+                creatureAnimator.SetTrigger("startIdle");
+            }
+            
 
             UpdateInteractTrigger();
         }
