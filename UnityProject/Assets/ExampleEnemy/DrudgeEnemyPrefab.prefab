@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &346277138059798810
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 725523683196432819}
+  m_Layer: 19
+  m_Name: PlayerTarget
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &725523683196432819
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 346277138059798810}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.012632066, y: -0.5364893, z: 0.8437545, w: 0.009901362}
+  m_LocalPosition: {x: 0.0012, y: 0.108, z: 0.0958}
+  m_LocalScale: {x: 0.01, y: 0.010000008, z: 0.010000007}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5286174677332249071}
+  m_LocalEulerAnglesHint: {x: -244.834, y: 175.692, z: -4.0809937}
 --- !u!1 &465862264926045832
 GameObject:
   m_ObjectHideFlags: 0
@@ -1465,6 +1496,10 @@ PrefabInstance:
       addedObject: {fileID: 8200066176260068024}
     - targetCorrespondingSourceObject: {fileID: -991608604700706330, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
+      insertIndex: 2
+      addedObject: {fileID: 725523683196432819}
+    - targetCorrespondingSourceObject: {fileID: -991608604700706330, guid: 387ef8d072865044581b0a04c137f4a3,
+        type: 3}
       insertIndex: -1
       addedObject: {fileID: 48469581641351472}
     - targetCorrespondingSourceObject: {fileID: -991608604700706330, guid: 387ef8d072865044581b0a04c137f4a3,
@@ -1615,6 +1650,7 @@ MonoBehaviour:
   turnCompass: {fileID: 7264021673931560886}
   attackArea: {fileID: 5699555411405659456}
   grabTarget: {fileID: 8200066176260068024}
+  playerTarget: {fileID: 725523683196432819}
   drudgeTrigger: {fileID: 5540906395977258467}
   heldItem: {fileID: 0}
   footstepSFX: {fileID: 8300000, guid: a1a18c0d2926b5247b32942f11b23dc7, type: 3}

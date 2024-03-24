@@ -28,11 +28,13 @@ namespace ExampleEnemy {
         System.Random enemyRandom;
         bool isDeadAnimationDone;
         public Transform grabTarget;
+        public Transform playerTarget;
         enum State {
             SearchingForPlayer,
             FollowPlayer,
             ChasingPlayer,
             AngrilyLookingAtPlayer,
+            KillingPlayer,
         }
 
         public InteractTrigger drudgeTrigger;
@@ -108,6 +110,16 @@ namespace ExampleEnemy {
 
             UpdateLightSource();
             UpdateInteractTrigger();
+            UpdateSpecialAnimation();
+        }
+
+        private void UpdateSpecialAnimation()
+        {
+            if (inSpecialAnimationWithPlayer != null)
+            {
+                inSpecialAnimationWithPlayer.transform.position = playerTarget.position;
+                inSpecialAnimationWithPlayer.transform.rotation = playerTarget.rotation;
+            }
         }
 
         private void UpdateAngerLevel()
@@ -163,6 +175,10 @@ namespace ExampleEnemy {
 
                 case (int)State.AngrilyLookingAtPlayer:
                     AngrilyLookingAtPlayerState();
+                    break;
+
+                case (int)State.KillingPlayer:
+                    KillingPlayerState();
                     break;
                     
                 default:
@@ -289,6 +305,15 @@ namespace ExampleEnemy {
                 targetPlayer.JumpToFearLevel(1f, true);
                 SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
                 return;
+            }
+        }
+
+        void KillingPlayerState()
+        {
+            agent.speed = 0;
+            if (inSpecialAnimationWithPlayer == null)
+            {
+                SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
             }
         }
 
@@ -464,12 +489,42 @@ namespace ExampleEnemy {
         public override void OnCollideWithPlayer(Collider other)
         {
             base.OnCollideWithPlayer(other);
-            PlayerControllerB playerControllerB = MeetsStandardPlayerCollisionConditions(other);
+            PlayerControllerB player = MeetsStandardPlayerCollisionConditions(other);
 
-            if (playerControllerB != null && currentBehaviourStateIndex == (int)State.ChasingPlayer)
+            if (player != null && player == targetPlayer && currentBehaviourStateIndex == (int)State.ChasingPlayer)
             {
-                playerControllerB.KillPlayer(Vector3.zero, true, CauseOfDeath.Mauling, 1);
+                inSpecialAnimationWithPlayer = player;
+                inSpecialAnimationWithPlayer.inSpecialInteractAnimation = true;
+                inSpecialAnimationWithPlayer.inAnimationWithEnemy = this;
+                StartCoroutine(KillPlayerAnimation(player));
             }
+        }
+
+        private IEnumerator KillPlayerAnimation(PlayerControllerB player)
+        {
+            creatureAnimator.SetTrigger("startKill");
+            inSpecialAnimation = true;
+
+            yield return new WaitForSeconds(2f);
+            if (player.inAnimationWithEnemy == this && !player.isPlayerDead)
+            {
+                inSpecialAnimationWithPlayer = null;
+                player.KillPlayer(Vector3.zero, true, CauseOfDeath.Crushing, 1);
+                player.inSpecialInteractAnimation = false;
+                player.inAnimationWithEnemy = null;
+                yield return new WaitForSeconds(1f);
+            }
+            inSpecialAnimationWithPlayer = null;
+            inSpecialAnimation = false;
+            if (!IsOwner)
+            {
+                yield break;
+            }
+            else
+            {
+                SwitchToBehaviourState((int)State.SearchingForPlayer);
+            }
+            yield break;
         }
     }
 }
