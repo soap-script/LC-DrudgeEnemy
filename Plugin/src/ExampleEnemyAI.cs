@@ -1,24 +1,41 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using GameNetcodeStuff;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace ExampleEnemy {
 
-    // You may be wondering, how does the Example Enemy know it is from class ExampleEnemyAI?
-    // Well, we give it a reference to to this class in the Unity project where we make the asset bundle.
-    // Asset bundles cannot contain scripts, so our script lives here. It is important to get the
-    // reference right, or else it will not find this file. See the guide for more information.
 
+    /**
+     * TODO:
+     * - Better model
+     * - Better animations
+     *   - Turning/skidding around a corner
+     *     - Particles for metal clashing metal?
+     *   - Chase animation
+     *   - Angrily looking at player animation
+     *   - Arm looking at player/item
+     *   - Walk cycle
+     *   - Idle animation
+     *   - Stun animation
+     * - Stunning interrupts kill sequence
+     * - Kill sequence slowly damages before outright killing
+     * - Better sounds
+     * - Bestiary entry
+     * - Better logs for debugging
+     * - RPC methods and network testing
+     * - Better positioning while following player
+     * - Pick up player body after killing sequence
+     * - Item-specific logic (swinging a shovel, zap gun, etc.)
+     */
     class ExampleEnemyAI : EnemyAI
     {
-        // We set these in our Asset Bundle, so we can disable warning CS0649:
-        // Field 'field' is never assigned to, and will always have its default value 'value'
-        #pragma warning disable 0649
         public Transform turnCompass;
         public Transform attackArea;
-        #pragma warning restore 0649
         float timeSinceHittingLocalPlayer;
         float timeSinceNewRandPos;
         float playerEmoteTime;
@@ -35,6 +52,7 @@ namespace ExampleEnemy {
             ChasingPlayer,
             AngrilyLookingAtPlayer,
             KillingPlayer,
+            OpeningDoor,
         }
 
         public InteractTrigger drudgeTrigger;
@@ -45,6 +63,9 @@ namespace ExampleEnemy {
         public Light drudgeLightGlow;
         public float angerLevel;
         public float angerLevelAccelerator;
+
+        private DoorLock closestDoor;
+
 
         [Conditional("DEBUG")]
         void LogIfDebugBuild(string text) {
@@ -67,22 +88,11 @@ namespace ExampleEnemy {
             drudgeLight.enabled = true;
             angerLevel = 0;
             angerLevelAccelerator = 1f;
-            // We make the enemy start searching. This will make it start wandering around.
             StartSearch(transform.position);
         }
 
         public override void Update() {
             base.Update();
-            if(isEnemyDead){ 
-                // For some weird reason I can't get an RPC to get called from HitEnemy() (works from other methods), so we do this workaround. We just want the enemy to stop playing the song.
-                if(!isDeadAnimationDone){ 
-                    LogIfDebugBuild("Stopping enemy voice with janky code.");
-                    isDeadAnimationDone = true;
-                    creatureVoice.Stop();
-                    creatureVoice.PlayOneShot(dieSFX);
-                }
-                return;
-            }
 
             timeSinceHittingLocalPlayer += Time.deltaTime;
             timeSinceNewRandPos += Time.deltaTime;
@@ -113,16 +123,21 @@ namespace ExampleEnemy {
             UpdateSpecialAnimation();
         }
 
-        private void UpdateSpecialAnimation()
+        void UpdateSpecialAnimation()
         {
             if (inSpecialAnimationWithPlayer != null)
             {
-                inSpecialAnimationWithPlayer.transform.position = playerTarget.position;
+                Vector3 distanceBetweenPlayerTransformToCamera = inSpecialAnimationWithPlayer.transform.position - inSpecialAnimationWithPlayer.gameplayCamera.transform.position;
+                inSpecialAnimationWithPlayer.transform.position = new Vector3(
+                    playerTarget.position.x + distanceBetweenPlayerTransformToCamera.x,
+                    playerTarget.position.y + distanceBetweenPlayerTransformToCamera.y,
+                    playerTarget.position.z + distanceBetweenPlayerTransformToCamera.z
+                );
                 inSpecialAnimationWithPlayer.transform.rotation = playerTarget.rotation;
             }
         }
 
-        private void UpdateAngerLevel()
+        void UpdateAngerLevel()
         {
             if ((currentBehaviourStateIndex != (int)State.AngrilyLookingAtPlayer && currentBehaviourStateIndex != (int)State.ChasingPlayer) && angerLevel > 0)
             {
@@ -131,7 +146,7 @@ namespace ExampleEnemy {
             }
         }
 
-        private void UpdateInteractTrigger ()
+        void UpdateInteractTrigger ()
         {
             if (GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null && currentBehaviourStateIndex == (int)State.FollowPlayer)
             {
@@ -144,7 +159,7 @@ namespace ExampleEnemy {
                 drudgeTrigger.hoverTip = "";
             }
         }
-        private void UpdateLightSource()
+        void UpdateLightSource()
         {
             drudgeLight.color = Color.Lerp(Color.white, Color.red, angerLevel);
             drudgeLight.spotAngle = Mathf.Lerp(50, 20, angerLevel);
@@ -179,6 +194,10 @@ namespace ExampleEnemy {
 
                 case (int)State.KillingPlayer:
                     KillingPlayerState();
+                    break;
+
+                case (int)State.OpeningDoor:
+                    OpeningDoorState();
                     break;
                     
                 default:
@@ -234,9 +253,36 @@ namespace ExampleEnemy {
             FollowPlayer();
         }
 
+        void OpeningDoorState()
+        {
+            if (!closestDoor || !heldItem)
+            {
+                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                return;
+            }
+            if (!closestDoor.isLocked)
+            {
+                closestDoor = null;
+                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+            }
+            float distanceToDoor = Vector3.Distance(closestDoor.transform.position, transform.position);
+            if (distanceToDoor < 2f)
+            {
+                DespawnHeldItemServerRPC();
+
+                closestDoor.UnlockDoorSyncWithServer();
+                closestDoor.gameObject.GetComponent<AnimatedObjectTrigger>().TriggerAnimationNonPlayer(GetComponent<EnemyAICollisionDetect>().mainScript.useSecondaryAudiosOnAnimatedObjects, true, false);
+                closestDoor.OpenDoorAsEnemyServerRpc();
+                closestDoor = null;
+                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                return;
+            }
+            Vector3 closerSideOfDoor = closestDoor.transform.position - transform.position;
+            SetDestinationToPosition(closestDoor.transform.position - Vector3.Normalize(closerSideOfDoor));
+        }
+
         void CheckTargetPlayerForEmoteActions ()
         {
-            // test
             if (targetPlayer && targetPlayer.performingEmote && targetPlayer.playerBodyAnimator.GetInteger("emoteNumber") == 2)
             {
                 playerEmoteTime += Time.deltaTime;
@@ -286,6 +332,7 @@ namespace ExampleEnemy {
 
         void AngrilyLookingAtPlayerState()
         {
+            agent.speed = 0f;
             LogIfDebugBuild($"Angrily Looking At Player: {angerLevel}");
             if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
                 LogIfDebugBuild("Stop Target Player");
@@ -356,6 +403,21 @@ namespace ExampleEnemy {
             }
             return targetPlayer != null && Vector3.Distance(transform.position, targetPlayer.transform.position) < range;
         }
+
+        void FindClosestLockedDoor(float range)
+        {
+            List<DoorLock> list = FindObjectsOfType<DoorLock>().ToList();
+            float closestDoorDistance = range;
+            foreach (DoorLock door in list)
+            {
+                float dist = Vector3.Distance(transform.position, door.transform.position);
+                if (dist < range && dist < closestDoorDistance)
+                {
+                    closestDoor = door;
+                    closestDoorDistance = dist;
+                }
+            }
+        }
         
         bool TargetClosestPlayerInAnyCase() {
             mostOptimalDistance = 2000f;
@@ -404,6 +466,19 @@ namespace ExampleEnemy {
             {
                 SetItemAsHeld(networkObject);
             }
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        protected void DespawnHeldItemServerRPC ()
+        {
+            DespawnHeldItemClientRPC();
+        }
+
+        [ClientRpc]
+        protected void DespawnHeldItemClientRPC ()
+        {
+            heldItem.gameObject.GetComponent<NetworkObject>().Despawn(true);
+            heldItem = null;
         }
 
         private void SetItemAsHeld(NetworkObject componentRef)
@@ -455,19 +530,59 @@ namespace ExampleEnemy {
             UseHeldItem();
         }
 
-        public void UseHeldItem()
+        public void UseHeldItem(bool activateItem = true)
         {
             if (heldItem == null)
             {
                 return;
             }
+            LogIfDebugBuild($"Using held item ${heldItem.name}");
             if (heldItem is JetpackItem)
             {
                 (heldItem as JetpackItem).ExplodeJetpackServerRpc();
                 DropItem();
                 return;
             }
-            heldItem.UseItemOnClient(true);
+            if (heldItem is WhoopieCushionItem)
+            {
+                (heldItem as WhoopieCushionItem).Fart();
+                return;
+            }
+            if (heldItem is ExtensionLadderItem)
+            {
+                try
+                {
+                    heldItem.UseItemOnClient(activateItem);
+                } catch 
+                {
+                    // Fail silently. Lethal Company attempts to get the player to drop the ladder, but we're not a player
+                }
+                DropItem();
+                return;
+            }
+            if (heldItem is StunGrenadeItem)
+            {
+                StunGrenadeItem grenade = heldItem as StunGrenadeItem;
+                grenade.pinPulled = true;
+                DropItem();
+                return;
+            }
+            if (heldItem is KeyItem)
+            {
+                FindClosestLockedDoor(10f);
+                if (closestDoor)
+                {
+                    SwitchToBehaviourState((int)State.OpeningDoor);
+                }
+                return;
+            }
+            if (heldItem is SprayPaintItem)
+            {
+                // Spray paint handling is a little buggy right now. Need to actually get it to spray.
+                return;
+            }
+
+            heldItem.UseItemOnClient(activateItem);
         }
 
         [ClientRpc]
@@ -483,7 +598,7 @@ namespace ExampleEnemy {
 
         private void ToggleLight()
         {
-            drudgeLight.enabled = !drudgeLight.enabled;
+            drudgeLight.enabled = heldItem == null;
         }
 
         public override void OnCollideWithPlayer(Collider other)
@@ -491,12 +606,12 @@ namespace ExampleEnemy {
             base.OnCollideWithPlayer(other);
             PlayerControllerB player = MeetsStandardPlayerCollisionConditions(other);
 
-            if (player != null && player == targetPlayer && currentBehaviourStateIndex == (int)State.ChasingPlayer)
+            if (player != null && player == targetPlayer && currentBehaviourStateIndex == (int)State.ChasingPlayer && inSpecialAnimationWithPlayer == null)
             {
                 inSpecialAnimationWithPlayer = player;
                 inSpecialAnimationWithPlayer.inSpecialInteractAnimation = true;
                 inSpecialAnimationWithPlayer.inAnimationWithEnemy = this;
-                StartCoroutine(KillPlayerAnimation(player));
+                StartCoroutine(KillPlayerAnimation(player)); 
             }
         }
 
