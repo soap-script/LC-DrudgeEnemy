@@ -106,7 +106,6 @@ namespace LC_Drudge {
 
         public override void Update() {
             base.Update();
-            LogIfDebugBuild("This is a test");
 
             timeSinceHittingLocalPlayer += Time.deltaTime;
             timeSinceNewRandPos += Time.deltaTime;
@@ -234,7 +233,7 @@ namespace LC_Drudge {
             {
                 if (timeSinceTargetedPreviousPlayer > 5f)
                 {
-                    LogIfDebugBuild($"Unsetting target player! Current Player ${currentTargetPlayerId} -- Previous Player ${previousTargetPlayerId}");
+                    LogIfDebugBuild($"Previous player now targettable again. Current Player ${currentTargetPlayerId} -- Previous Player ${previousTargetPlayerId}");
                     previousTargetPlayerId = currentTargetPlayerId;
                     timeSinceTargetedPreviousPlayer = 0f;
                 } else
@@ -345,9 +344,9 @@ namespace LC_Drudge {
                 SwitchToBehaviourState((int)State.SearchingForPlayer);
                 return;
             }
-            if (!DoesPlayerHaveAnItem(targetPlayer) && !heldItem)
+            if (!DoesPlayerHaveAnItem(GetCurrentTargetPlayer()) && !heldItem)
             {
-                LogIfDebugBuild("Target player does not have item. Switching to chasing");
+                LogIfDebugBuild("Target player does not have item. Switching to anger look");
                 SwitchToBehaviourState((int)State.AngrilyLookingAtPlayer);
                 return;
             }
@@ -394,18 +393,18 @@ namespace LC_Drudge {
             if (localPlayer && localPlayer.performingEmote && localPlayer.playerBodyAnimator.GetInteger("emoteNumber") == 2)
             {
                 playerEmoteTime += Time.deltaTime;
-                LogIfDebugBuild($"Player emote time - {playerEmoteTime}");
+                LogIfDebugBuild($"Player ${localPlayer.playerClientId} emote time - {playerEmoteTime}");
                 bool lookingAtDrudge = LocalPlayerLookingAtDrudge();
                 bool lookingAtGround = LocalPlayerLookingAtGround();
                 PlayerControllerB playerBeingLookedAt = LocalPlayerLookingAtOtherPlayer();
                 if (playerBeingLookedAt != null)
                 {
-                    LogIfDebugBuild($"Player Being Looked at ${playerBeingLookedAt.playerClientId}");
+                    LogIfDebugBuild($"Player ${localPlayer.playerClientId} looking at ${playerBeingLookedAt.playerClientId}");
                 }
                 if (playerEmoteTime > 0.03 && !hasActedFromEmote && (lookingAtDrudge || lookingAtGround || playerBeingLookedAt != null))
                 {
 
-                    Plugin.Logger.LogInfo("Player has emoted! Attempting action.");
+                    Plugin.Logger.LogInfo($"Player ${localPlayer.playerClientId} has emoted! Attempting action.");
                     if (lookingAtGround)
                     {
                         Plugin.Logger.LogInfo("Dropping Item.");
@@ -478,16 +477,19 @@ namespace LC_Drudge {
 
         void SetNewTargetPlayer(PlayerControllerB player)
         {
-            if (player.playerClientId != previousTargetPlayerId)
-            {
-                LogIfDebugBuild($"Setting new target player ${player.playerClientId}");
-                targetPlayer = player;
-                ChangeOwnershipOfEnemy(player.actualClientId);
-                SetCurrentTargetPlayerServerRPC(player.playerClientId);
-            } else
+            LogIfDebugBuild($"Attempting to set new target player ${player.playerClientId}");
+            bool cannotTargetPreviousPlayer = timeSinceTargetedPreviousPlayer != 0f;
+            if (player.playerClientId == previousTargetPlayerId && cannotTargetPreviousPlayer)
             {
                 LogIfDebugBuild("Could not set new target player");
             }
+            else {
+                LogIfDebugBuild($"Setting new target player ${player.playerClientId}");
+                targetPlayer = player;
+                currentTargetPlayerId = player.playerClientId;
+                ChangeOwnershipOfEnemy(player.actualClientId);
+                SetCurrentTargetPlayerServerRPC(player.playerClientId);
+            }                 
         }
 
         bool DoesPlayerHaveAnItem(PlayerControllerB player)
@@ -505,7 +507,11 @@ namespace LC_Drudge {
 
         void FollowPlayer()
         {
-            SetDestinationToPosition(GetCurrentTargetPlayer().transform.position - Vector3.Scale(new Vector3(-5, 0 -5), GetCurrentTargetPlayer().transform.forward), checkForPath: false);
+            Vector3 targetPosition = GetCurrentTargetPlayer().transform.position - Vector3.Scale(new Vector3(3, 0, 3), Vector3.Normalize(GetCurrentTargetPlayer().transform.position - transform.position));
+            if (Vector3.Distance(targetPosition, transform.position) > 0.5f)
+            {
+                SetDestinationToPosition(targetPosition, checkForPath: false);
+            }
         }
 
         bool FoundClosestPlayerInRange(float range, float senseRange) {
@@ -563,25 +569,26 @@ namespace LC_Drudge {
         
         bool TargetClosestPlayerInAnyCase() {
             mostOptimalDistance = 2000f;
-            PlayerControllerB previousTargetPlayer = GetCurrentTargetPlayer(); ;
-            targetPlayer = null;
+            bool canTargetPreviousPlayer = timeSinceTargetedPreviousPlayer == 0f;
+            PlayerControllerB potentialNewTargetPlayer = null;
             for (int i = 0; i < StartOfRound.Instance.connectedPlayersAmount + 1; i++)
             {
                 tempDist = Vector3.Distance(transform.position, StartOfRound.Instance.allPlayerScripts[i].transform.position);
                 if (tempDist < mostOptimalDistance)
                 {
                     mostOptimalDistance = tempDist;
-                    targetPlayer = StartOfRound.Instance.allPlayerScripts[i];
+                    potentialNewTargetPlayer = StartOfRound.Instance.allPlayerScripts[i];
                 }
             }
-            if (targetPlayer == null)
+            if (potentialNewTargetPlayer == null)
             {
                 return false;
             }
             else
             {
-                if (targetPlayer != previousTargetPlayer && targetPlayer != null)
+                if (targetPlayer != potentialNewTargetPlayer && (potentialNewTargetPlayer.playerClientId != previousTargetPlayerId || canTargetPreviousPlayer))
                 {
+                    targetPlayer = potentialNewTargetPlayer;
                     ChangeOwnershipOfEnemy(targetPlayer.actualClientId);
                     SetCurrentTargetPlayerServerRPC(targetPlayer.playerClientId);
                 }
