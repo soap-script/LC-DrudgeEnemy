@@ -4,9 +4,9 @@ using BepInEx;
 using LethalLib.Modules;
 using BepInEx.Logging;
 using System.IO;
-using ExampleEnemy.Configuration;
+using LC_Drudge.Configuration;
 
-namespace ExampleEnemy {
+namespace LC_Drudge {
     [BepInPlugin(ModGUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
     [BepInDependency(LethalLib.Plugin.ModGUID)] 
     public class Plugin : BaseUnityPlugin {
@@ -38,14 +38,14 @@ namespace ExampleEnemy {
             }
 
             // We load our assets from our asset bundle. Remember to rename them both here and in our Unity project.
-            var ExampleEnemy = ModAssets.LoadAsset<EnemyType>("DrudgeEnemy");
-            var ExampleEnemyTN = ModAssets.LoadAsset<TerminalNode>("ExampleEnemyTN");
-            var ExampleEnemyTK = ModAssets.LoadAsset<TerminalKeyword>("ExampleEnemyTK");
+            var DrudgeEnemy = ModAssets.LoadAsset<EnemyType>("DrudgeEnemy");
+            var DrudgeEnemyTN = ModAssets.LoadAsset<TerminalNode>("ExampleEnemyTN");
+            var DrudgeEnemyTK = ModAssets.LoadAsset<TerminalKeyword>("ExampleEnemyTK");
             
             // Network Prefabs need to be registered. See https://docs-multiplayer.unity3d.com/netcode/current/basics/object-spawning/
             // LethalLib registers prefabs on GameNetworkManager.Start.
-            NetworkPrefabs.RegisterNetworkPrefab(ExampleEnemy.enemyPrefab);
-			Enemies.RegisterEnemy(ExampleEnemy, BoundConfig.SpawnWeight.Value, Levels.LevelTypes.All, Enemies.SpawnType.Default, ExampleEnemyTN, ExampleEnemyTK);
+            NetworkPrefabs.RegisterNetworkPrefab(DrudgeEnemy.enemyPrefab);
+			Enemies.RegisterEnemy(DrudgeEnemy, BoundConfig.SpawnWeight.Value, Levels.LevelTypes.All, Enemies.SpawnType.Default, DrudgeEnemyTN, DrudgeEnemyTK);
             
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
         }

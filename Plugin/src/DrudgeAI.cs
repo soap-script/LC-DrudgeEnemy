@@ -12,7 +12,7 @@ using UnityEngine.Animations.Rigging;
 using UnityEngine.SocialPlatforms;
 using UnityEngine.UIElements;
 
-namespace ExampleEnemy {
+namespace LC_Drudge {
 
 
     /**
@@ -36,7 +36,7 @@ namespace ExampleEnemy {
      * - Better positioning while following player
      * - Item-specific logic (swinging a shovel, zap gun, etc.)
      */
-    class ExampleEnemyAI : EnemyAI
+    class LC_Drudge : EnemyAI
     {
         public Transform turnCompass;
         public Transform attackArea;
@@ -106,6 +106,7 @@ namespace ExampleEnemy {
 
         public override void Update() {
             base.Update();
+            LogIfDebugBuild("This is a test");
 
             timeSinceHittingLocalPlayer += Time.deltaTime;
             timeSinceNewRandPos += Time.deltaTime;

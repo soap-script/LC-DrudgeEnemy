@@ -2,9 +2,8 @@
   "ExpandedNodes": [
     "",
     "\\Plugin",
-    "\\Plugin\\src",
-    "\\UnityProject\\Assets"
+    "\\Plugin\\src"
   ],
-  "SelectedNode": "\\Plugin\\src\\ExampleEnemyAI.cs",
+  "SelectedNode": "\\Plugin\\src\\DrudgeAI.cs",
   "PreviewInSolutionExplorer": false
 }

@@ -3,15 +3,15 @@ using System.Reflection;
 using BepInEx;
 using BepInEx.Configuration;
 
-namespace ExampleEnemy.Configuration {
+namespace LC_Drudge.Configuration {
     public class PluginConfig
     {
         // For more info on custom configs, see https://lethal.wiki/dev/intermediate/custom-configs
         public ConfigEntry<int> SpawnWeight;
         public PluginConfig(BaseUnityPlugin plugin)
         {
-            SpawnWeight = plugin.Config.Bind("ExampleEnemy", "Spawn weight", 20,
-                "The spawn chance weight for ExampleEnemy, relative to other existing enemies.\n" +
+            SpawnWeight = plugin.Config.Bind("Drudge", "Spawn weight", 20,
+                "The spawn chance weight for Drudge, relative to other existing enemies.\n" +
                 "Goes up from 0, lower is more rare, 100 and up is very common.");
             
             ClearUnusedEntries(plugin);

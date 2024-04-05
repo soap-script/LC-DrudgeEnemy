@@ -1252,7 +1252,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6d7127b8f98ca8ec9896b384a71d39a2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mainScript: {fileID: 4545630239673622632}
+  mainScript: {fileID: 5023348558536816812}
   canCollideWithEnemies: 0
   onlyCollideWhenGrounded: 0
 --- !u!65 &8119794320806593265
@@ -1451,6 +1451,16 @@ PrefabInstance:
       propertyPath: m_Name
       value: DrudgeEnemyPrefab
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 387ef8d072865044581b0a04c137f4a3,
+        type: 3}
+      propertyPath: m_Layer
+      value: 19
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 387ef8d072865044581b0a04c137f4a3,
+        type: 3}
+      propertyPath: m_TagString
+      value: Enemy
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:
@@ -1510,7 +1520,7 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: -1
-      addedObject: {fileID: 4545630239673622632}
+      addedObject: {fileID: 5023348558536816812}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: -1
@@ -1635,7 +1645,7 @@ GameObject:
     type: 3}
   m_PrefabInstance: {fileID: 4278801068216430601}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &4545630239673622632
+--- !u!114 &5023348558536816812
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1644,7 +1654,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 4008259980273061208}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 2106200333, guid: e0a89e6f23bd69e40ab1b6cd831745f1, type: 3}
+  m_Script: {fileID: -530108442, guid: f0ee7c12b1e8d4a43b2c776a8f7462e7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   enemyType: {fileID: 11400000, guid: dd4105a2d58ae5d42929ed27d877b7e3, type: 2}
@@ -1781,6 +1791,8 @@ MonoBehaviour:
   drudgeLightGlow: {fileID: 587362664587618778}
   angerLevel: 0
   angerLevelAccelerator: 10
+  previousTargetPlayerId: 0
+  timeSinceTargetedPreviousPlayer: 0
   currentTargetPlayerId: 0
 --- !u!195 &-4307780945350878767
 NavMeshAgent:
