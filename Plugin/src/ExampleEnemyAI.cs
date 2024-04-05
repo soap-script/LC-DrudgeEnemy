@@ -1,11 +1,16 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.NetworkInformation;
 using GameNetcodeStuff;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Animations.Rigging;
+using UnityEngine.SocialPlatforms;
+using UnityEngine.UIElements;
 
 namespace ExampleEnemy {
 
@@ -27,9 +32,8 @@ namespace ExampleEnemy {
      * - Better sounds
      * - Bestiary entry
      * - Better logs for debugging
-     * - RPC methods and network testing
+     * - Network testing
      * - Better positioning while following player
-     * - Pick up player body after killing sequence
      * - Item-specific logic (swinging a shovel, zap gun, etc.)
      */
     class ExampleEnemyAI : EnemyAI
@@ -58,11 +62,21 @@ namespace ExampleEnemy {
         public InteractTrigger drudgeTrigger;
         public GrabbableObject heldItem;
 
+        private Vector3 previousPosition;
+        private float velX;
+        private float velZ;
+        
+
         public AudioClip footstepSFX;
+        public AudioClip handCloseSFX;
+        public AudioClip crushingSFX;
         public Light drudgeLight;
         public Light drudgeLightGlow;
-        public float angerLevel;
-        public float angerLevelAccelerator;
+        public float angerLevel = 0f;
+        public float angerLevelAccelerator = 0.8f;
+        public ulong previousTargetPlayerId;
+        public float timeSinceTargetedPreviousPlayer = 0f;
+        public ulong currentTargetPlayerId;
 
         private DoorLock closestDoor;
 
@@ -86,8 +100,7 @@ namespace ExampleEnemy {
             currentBehaviourStateIndex = (int)State.SearchingForPlayer;
             drudgeTrigger.onInteract.AddListener(GrabScrapFromPlayer);
             drudgeLight.enabled = true;
-            angerLevel = 0;
-            angerLevelAccelerator = 1f;
+
             StartSearch(transform.position);
         }
 
@@ -99,8 +112,8 @@ namespace ExampleEnemy {
 
             var state = currentBehaviourStateIndex;
 
-            if(targetPlayer != null && (state == (int)State.FollowPlayer || state == (int)State.AngrilyLookingAtPlayer)){
-                turnCompass.LookAt(targetPlayer.gameplayCamera.transform.position);
+            if(GetCurrentTargetPlayer() != null && (state == (int)State.FollowPlayer || state == (int)State.AngrilyLookingAtPlayer)){
+                turnCompass.LookAt(GetCurrentTargetPlayer().gameplayCamera.transform.position);
                 transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(new Vector3(0f, turnCompass.eulerAngles.y, 0f)), 10f * Time.deltaTime);
             }
             if (stunNormalizedTimer > 0f)
@@ -108,19 +121,66 @@ namespace ExampleEnemy {
                 agent.speed = 0f;
             }
 
-            
-            if (agent.velocity.magnitude > 1f)
-            {
-                creatureAnimator.SetTrigger("startWalk");
-            } else
-            {
-                creatureAnimator.SetTrigger("startIdle");
-            }
-
+            CalculateLocalAnimationVelocity();
 
             UpdateLightSource();
             UpdateInteractTrigger();
             UpdateSpecialAnimation();
+            UpdateAngerLevel();
+            UpdateMovingTowardsTargetPlayer();
+            UpdatePreviousTargetPlayer();
+
+            switch(currentBehaviourStateIndex) {
+                case (int)State.SearchingForPlayer:
+                    agent.speed = 3f;
+                    break;
+
+                case (int)State.FollowPlayer:
+                    agent.speed = 5f;
+                    break;
+
+                case (int)State.ChasingPlayer:
+                    agent.speed = 8f;
+                    break;
+
+                case (int)State.AngrilyLookingAtPlayer:
+                    agent.speed = 0f;
+
+                    angerLevel += angerLevelAccelerator * Time.deltaTime;
+                    if (angerLevel >= 1)
+                    {
+                        GetCurrentTargetPlayer().JumpToFearLevel(1f, true);
+                        SwitchToBehaviourState((int)State.ChasingPlayer);
+                        return;
+                    }
+                    break;
+
+                case (int)State.KillingPlayer:
+                    agent.speed = 0;
+                    if (inSpecialAnimationWithPlayer == null)
+                    {
+                        SwitchToBehaviourState((int)State.ChasingPlayer);
+                    }
+                    break;
+
+                case (int)State.OpeningDoor:
+                    break;
+                    
+                default:
+                    LogIfDebugBuild($"This behavior state isn't being handled by Update - ${currentBehaviourState} ${currentBehaviourStateIndex}");
+                    break;
+            }
+        }
+
+        Vector3 CalculateLocalAnimationVelocity(float maxSpeed = 2f)
+        {
+            Vector3 agentLocalVelocity = transform.InverseTransformDirection(Vector3.ClampMagnitude(transform.position - previousPosition, 1f) / (Time.deltaTime * 2f));
+            velX = Mathf.Lerp(velX, agentLocalVelocity.x, 10f * Time.deltaTime);
+            creatureAnimator.SetFloat("velocityX", Mathf.Clamp(velX, -maxSpeed, maxSpeed));
+            velZ = Mathf.Lerp(velZ, agentLocalVelocity.z, 10f * Time.deltaTime);
+            creatureAnimator.SetFloat("velocityZ", Mathf.Clamp(velZ, -maxSpeed, maxSpeed));
+            previousPosition = transform.position;
+            return transform.InverseTransformDirection(Vector3.ClampMagnitude(transform.position - previousPosition, 1f) / (Time.deltaTime * 2f));
         }
 
         void UpdateSpecialAnimation()
@@ -139,10 +199,11 @@ namespace ExampleEnemy {
 
         void UpdateAngerLevel()
         {
+            creatureAnimator.SetFloat("angerLevel", angerLevel);
             if ((currentBehaviourStateIndex != (int)State.AngrilyLookingAtPlayer && currentBehaviourStateIndex != (int)State.ChasingPlayer) && angerLevel > 0)
             {
                 LogIfDebugBuild($"No reason to be angry");
-                angerLevel -= (angerLevelAccelerator * AIIntervalTime);
+                angerLevel -= angerLevelAccelerator * Time.deltaTime;
             }
         }
 
@@ -166,14 +227,28 @@ namespace ExampleEnemy {
             drudgeLightGlow.color = Color.Lerp(Color.white, Color.red, angerLevel);
         }
 
+        void UpdatePreviousTargetPlayer()
+        {
+            if (currentTargetPlayerId != previousTargetPlayerId)
+            {
+                if (timeSinceTargetedPreviousPlayer > 5f)
+                {
+                    LogIfDebugBuild($"Unsetting target player! Current Player ${currentTargetPlayerId} -- Previous Player ${previousTargetPlayerId}");
+                    previousTargetPlayerId = currentTargetPlayerId;
+                    timeSinceTargetedPreviousPlayer = 0f;
+                } else
+                {
+                    timeSinceTargetedPreviousPlayer += Time.deltaTime;
+                }
+            }
+        }
+
         public override void DoAIInterval() {
             
             base.DoAIInterval();
             if (isEnemyDead || StartOfRound.Instance.allPlayersDead) {
                 return;
             };
-            UpdateAngerLevel();
-            UpdateMovingTowardsTargetPlayer();
 
             switch(currentBehaviourStateIndex) {
                 case (int)State.SearchingForPlayer:
@@ -193,7 +268,6 @@ namespace ExampleEnemy {
                     break;
 
                 case (int)State.KillingPlayer:
-                    KillingPlayerState();
                     break;
 
                 case (int)State.OpeningDoor:
@@ -201,55 +275,82 @@ namespace ExampleEnemy {
                     break;
                     
                 default:
-                    LogIfDebugBuild("This Behavior State doesn't exist!");
+                    LogIfDebugBuild($"This behavior state isn't being handled by DoAIInterval - ${currentBehaviourState} ${currentBehaviourStateIndex}");
                     break;
             }
         }
 
         void SearchingForPlayerState()
         {
-            agent.speed = 3f;
-            if (FoundClosestPlayerInRange(25f, 3f)){
+            if (FoundClosestPlayerInRange(25f, 3f)) {
                 LogIfDebugBuild("Start Target Player");
                 StopSearch(currentSearch);
 
-                if (DoesPlayerHaveAnItem(targetPlayer) || heldItem != null)
+                if (DoesPlayerHaveAnItem(GetCurrentTargetPlayer()) || heldItem != null)
                 {
-                    SwitchToBehaviourClientRpc((int)State.FollowPlayer);
+                    SwitchToBehaviourState((int)State.FollowPlayer);
                 } else
                 {
-                    SwitchToBehaviourClientRpc((int)State.AngrilyLookingAtPlayer);
+                    SwitchToBehaviourState((int)State.AngrilyLookingAtPlayer);
                 }
             }
         }
 
-        bool TargetPlayerLookingAtDrudge()
+        [ServerRpc(RequireOwnership = false)]
+        void SetCurrentTargetPlayerServerRPC(ulong playerId)
         {
-            return targetPlayer.HasLineOfSightToPosition(transform.position + Vector3.up * 0.5f);
+            SetCurrentTargetPlayerClientRPC(playerId);
         }
 
-        bool TargetPlayerLookingAtGround()
+        [ClientRpc]
+        void SetCurrentTargetPlayerClientRPC(ulong playerId)
         {
-            return Vector3.Dot(targetPlayer.gameplayCamera.transform.forward, Vector3.down) > 0.5;
+            currentTargetPlayerId = playerId;
+        }
+
+        PlayerControllerB GetCurrentTargetPlayer()
+        {
+            return StartOfRound.Instance.allPlayerScripts.ElementAtOrDefault((int)currentTargetPlayerId);
+        }
+
+        bool LocalPlayerLookingAtDrudge()
+        {
+            return GameNetworkManager.Instance.localPlayerController.HasLineOfSightToPosition(transform.position + Vector3.up * 0.5f);
+        }
+
+        bool LocalPlayerLookingAtGround()
+        {
+            return Vector3.Dot(GameNetworkManager.Instance.localPlayerController.gameplayCamera.transform.forward, Vector3.down) > 0.5;
+        }
+
+        PlayerControllerB LocalPlayerLookingAtOtherPlayer()
+        {
+            PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
+            RaycastHit raycastHit;
+            if (Physics.Raycast(new Ray(localPlayer.gameplayCamera.transform.position, localPlayer.gameplayCamera.transform.forward), out raycastHit, 15f, 8))
+            {
+                PlayerControllerB component = raycastHit.transform.GetComponent<PlayerControllerB>();
+                return component;
+            }
+            return null;
         }
 
         void FollowPlayerState()
         {
-            agent.speed = 5f;
             // Keep targetting closest player, unless they are over 20 units away and we can't see them.
-            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
+            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(GetCurrentTargetPlayer().transform.position))){
                 LogIfDebugBuild("Stop Target Player");
                 StartSearch(transform.position);
-                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                SwitchToBehaviourState((int)State.SearchingForPlayer);
                 return;
             }
             if (!DoesPlayerHaveAnItem(targetPlayer) && !heldItem)
             {
                 LogIfDebugBuild("Target player does not have item. Switching to chasing");
-                SwitchToBehaviourClientRpc((int)State.AngrilyLookingAtPlayer);
+                SwitchToBehaviourState((int)State.AngrilyLookingAtPlayer);
                 return;
             }
-            CheckTargetPlayerForEmoteActions();
+            CheckLocalPlayerForEmoteActions();
             FollowPlayer();
         }
 
@@ -257,13 +358,14 @@ namespace ExampleEnemy {
         {
             if (!closestDoor || !heldItem)
             {
-                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                SwitchToBehaviourState((int)State.SearchingForPlayer);
                 return;
             }
             if (!closestDoor.isLocked)
             {
                 closestDoor = null;
-                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                SwitchToBehaviourState((int)State.SearchingForPlayer);
+                return;
             }
             float distanceToDoor = Vector3.Distance(closestDoor.transform.position, transform.position);
             if (distanceToDoor < 2f)
@@ -274,33 +376,49 @@ namespace ExampleEnemy {
                 closestDoor.gameObject.GetComponent<AnimatedObjectTrigger>().TriggerAnimationNonPlayer(GetComponent<EnemyAICollisionDetect>().mainScript.useSecondaryAudiosOnAnimatedObjects, true, false);
                 closestDoor.OpenDoorAsEnemyServerRpc();
                 closestDoor = null;
-                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                SwitchToBehaviourState((int)State.SearchingForPlayer);
                 return;
             }
             Vector3 closerSideOfDoor = closestDoor.transform.position - transform.position;
             SetDestinationToPosition(closestDoor.transform.position - Vector3.Normalize(closerSideOfDoor));
         }
 
-        void CheckTargetPlayerForEmoteActions ()
+        void CheckLocalPlayerForEmoteActions ()
         {
-            if (targetPlayer && targetPlayer.performingEmote && targetPlayer.playerBodyAnimator.GetInteger("emoteNumber") == 2)
+            if (currentBehaviourStateIndex != (int)State.FollowPlayer)
+            {
+                return;
+            }
+            PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
+            if (localPlayer && localPlayer.performingEmote && localPlayer.playerBodyAnimator.GetInteger("emoteNumber") == 2)
             {
                 playerEmoteTime += Time.deltaTime;
                 LogIfDebugBuild($"Player emote time - {playerEmoteTime}");
-                bool lookingAtDrudge = TargetPlayerLookingAtDrudge();
-                bool lookingAtGround = TargetPlayerLookingAtGround();
-                if (playerEmoteTime > 0.03 && !hasActedFromEmote && (lookingAtDrudge || lookingAtGround))
+                bool lookingAtDrudge = LocalPlayerLookingAtDrudge();
+                bool lookingAtGround = LocalPlayerLookingAtGround();
+                PlayerControllerB playerBeingLookedAt = LocalPlayerLookingAtOtherPlayer();
+                if (playerBeingLookedAt != null)
+                {
+                    LogIfDebugBuild($"Player Being Looked at ${playerBeingLookedAt.playerClientId}");
+                }
+                if (playerEmoteTime > 0.03 && !hasActedFromEmote && (lookingAtDrudge || lookingAtGround || playerBeingLookedAt != null))
                 {
 
                     Plugin.Logger.LogInfo("Player has emoted! Attempting action.");
                     if (lookingAtGround)
                     {
+                        Plugin.Logger.LogInfo("Dropping Item.");
                         DropItemServerRPC();
-                        DoAnimationClientRpc("startDrop");
+                        DoAnimationServerRPC("startDrop");
                     }
                     else if (lookingAtDrudge)
                     { 
-                        UseHeldItem(); 
+                        Plugin.Logger.LogInfo("Using Item.");
+                        UseHeldItemServerRPC(); 
+                    } else if (playerBeingLookedAt)
+                    {
+                        Plugin.Logger.LogInfo("Changing Target.");
+                        SetNewTargetPlayer(playerBeingLookedAt);
                     }
                     hasActedFromEmote = true;
                 }
@@ -314,66 +432,61 @@ namespace ExampleEnemy {
 
         void ChasingPlayerState()
         {
-            agent.speed = 8f;
             // Keep targetting closest player, unless they are over 20 units away and we can't see them
-            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
+            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
                 LogIfDebugBuild("Stop Target Player");
                 StartSearch(transform.position);
-                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                SwitchToBehaviourState((int)State.SearchingForPlayer);
                 return;
             }
-            if (DoesPlayerHaveAnItem(targetPlayer))
+            if (DoesPlayerHaveAnItem(GetCurrentTargetPlayer()))
             {
                 LogIfDebugBuild("Follow Target Player");
-                SwitchToBehaviourClientRpc((int)State.FollowPlayer);
+                SwitchToBehaviourState((int)State.FollowPlayer);
                 return;
             }
         }
 
         void AngrilyLookingAtPlayerState()
         {
-            agent.speed = 0f;
             LogIfDebugBuild($"Angrily Looking At Player: {angerLevel}");
-            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
+            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(GetCurrentTargetPlayer().transform.position))){
                 LogIfDebugBuild("Stop Target Player");
                 StartSearch(transform.position);
-                SwitchToBehaviourClientRpc((int)State.SearchingForPlayer);
+                SwitchToBehaviourState((int)State.SearchingForPlayer);
                 return;
             }
-            if (DoesPlayerHaveAnItem(targetPlayer) || heldItem != null)
+            if (DoesPlayerHaveAnItem(GetCurrentTargetPlayer()) || heldItem != null)
             {
                 LogIfDebugBuild("Follow Target Player");
-                SwitchToBehaviourClientRpc((int)State.FollowPlayer);
+                SwitchToBehaviourState((int)State.FollowPlayer);
                 return;
-            }
-            angerLevel += (angerLevelAccelerator * AIIntervalTime);
-            if (angerLevel >= 1)
-            {
-                targetPlayer.JumpToFearLevel(1f, true);
-                SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
-                return;
-            }
-        }
-
-        void KillingPlayerState()
-        {
-            agent.speed = 0;
-            if (inSpecialAnimationWithPlayer == null)
-            {
-                SwitchToBehaviourClientRpc((int)State.ChasingPlayer);
             }
         }
 
         void UpdateMovingTowardsTargetPlayer()
         {
-            if (targetPlayer && currentBehaviourStateIndex == (int)State.ChasingPlayer)
+            if (GetCurrentTargetPlayer() && currentBehaviourStateIndex == (int)State.ChasingPlayer)
             {
                 movingTowardsTargetPlayer = true;
             } else
             {
                 movingTowardsTargetPlayer = false;
             }
+        }
 
+        void SetNewTargetPlayer(PlayerControllerB player)
+        {
+            if (player.playerClientId != previousTargetPlayerId)
+            {
+                LogIfDebugBuild($"Setting new target player ${player.playerClientId}");
+                targetPlayer = player;
+                ChangeOwnershipOfEnemy(player.actualClientId);
+                SetCurrentTargetPlayerServerRPC(player.playerClientId);
+            } else
+            {
+                LogIfDebugBuild("Could not set new target player");
+            }
         }
 
         bool DoesPlayerHaveAnItem(PlayerControllerB player)
@@ -391,36 +504,65 @@ namespace ExampleEnemy {
 
         void FollowPlayer()
         {
-            SetDestinationToPosition(targetPlayer.transform.position - Vector3.Scale(new Vector3(-5, 0 -5), targetPlayer.transform.forward), checkForPath: false);
+            SetDestinationToPosition(GetCurrentTargetPlayer().transform.position - Vector3.Scale(new Vector3(-5, 0 -5), GetCurrentTargetPlayer().transform.forward), checkForPath: false);
         }
 
         bool FoundClosestPlayerInRange(float range, float senseRange) {
+            PlayerControllerB previousTargetPlayer = GetCurrentTargetPlayer();
             TargetClosestPlayer(bufferDistance: 1.5f, requireLineOfSight: true);
+
             if(targetPlayer == null){
                 // Couldn't see a player, so we check if a player is in sensing distance instead
                 TargetClosestPlayer(bufferDistance: 1.5f, requireLineOfSight: false);
                 range = senseRange;
             }
+            
+            if (targetPlayer != previousTargetPlayer && targetPlayer != null)
+            {
+                SetNewTargetPlayer(targetPlayer);
+            }
+
             return targetPlayer != null && Vector3.Distance(transform.position, targetPlayer.transform.position) < range;
         }
 
         void FindClosestLockedDoor(float range)
         {
             List<DoorLock> list = FindObjectsOfType<DoorLock>().ToList();
+            DoorLock newClosestDoor = null;
             float closestDoorDistance = range;
             foreach (DoorLock door in list)
             {
                 float dist = Vector3.Distance(transform.position, door.transform.position);
                 if (dist < range && dist < closestDoorDistance)
                 {
-                    closestDoor = door;
+                    newClosestDoor = door;
                     closestDoorDistance = dist;
                 }
             }
+
+            closestDoor = newClosestDoor;
+        }
+
+        RagdollGrabbableObject FindClosestDeadBody(float range)
+        {
+            RagdollGrabbableObject closestDeadBody = null;
+            List<RagdollGrabbableObject> bodies = FindObjectsOfType<RagdollGrabbableObject>().ToList();
+            float closestDeadBodyDistance = range;
+            foreach (RagdollGrabbableObject body in bodies)
+            {
+                float dist = Vector3.Distance(transform.position, body.transform.position);
+                if (dist < range && dist < closestDeadBodyDistance)
+                {
+                    closestDeadBody = body;
+                    closestDeadBodyDistance = dist;
+                }
+            }
+            return closestDeadBody;
         }
         
         bool TargetClosestPlayerInAnyCase() {
             mostOptimalDistance = 2000f;
+            PlayerControllerB previousTargetPlayer = GetCurrentTargetPlayer(); ;
             targetPlayer = null;
             for (int i = 0; i < StartOfRound.Instance.connectedPlayersAmount + 1; i++)
             {
@@ -431,8 +573,19 @@ namespace ExampleEnemy {
                     targetPlayer = StartOfRound.Instance.allPlayerScripts[i];
                 }
             }
-            if(targetPlayer == null) return false;
-            return true;
+            if (targetPlayer == null)
+            {
+                return false;
+            }
+            else
+            {
+                if (targetPlayer != previousTargetPlayer && targetPlayer != null)
+                {
+                    ChangeOwnershipOfEnemy(targetPlayer.actualClientId);
+                    SetCurrentTargetPlayerServerRPC(targetPlayer.playerClientId);
+                }
+                return true;
+            }
         }
 
         public void GrabScrapFromPlayer(PlayerControllerB player)
@@ -445,7 +598,7 @@ namespace ExampleEnemy {
             if (player == null) {
                 Plugin.Logger.LogError("Trying to grab scrap, but couldn't find player!");
             }
-            DoAnimationClientRpc("startPickUp");
+            DoAnimationServerRPC("startPickUp");
             GrabbableObject component = player.currentlyHeldObjectServer;
             player.DiscardHeldObject(false, thisNetworkObject, default, true);
 
@@ -471,14 +624,7 @@ namespace ExampleEnemy {
         [ServerRpc(RequireOwnership = false)]
         protected void DespawnHeldItemServerRPC ()
         {
-            DespawnHeldItemClientRPC();
-        }
-
-        [ClientRpc]
-        protected void DespawnHeldItemClientRPC ()
-        {
             heldItem.gameObject.GetComponent<NetworkObject>().Despawn(true);
-            heldItem = null;
         }
 
         private void SetItemAsHeld(NetworkObject componentRef)
@@ -527,7 +673,19 @@ namespace ExampleEnemy {
 
         public override void HitEnemy(int force = 1, PlayerControllerB playerWhoHit = null, bool playHitSFX = false) {
             base.HitEnemy(force, playerWhoHit, playHitSFX);
-            UseHeldItem();
+            UseHeldItemServerRPC();
+        }
+
+        [ServerRpc]
+        public void UseHeldItemServerRPC(bool activateItem = true)
+        {
+            UseHeldItemClientRPC(activateItem);
+        }
+
+        [ClientRpc]
+        public void UseHeldItemClientRPC(bool activateItem = true)
+        {
+            UseHeldItem(activateItem);
         }
 
         public void UseHeldItem(bool activateItem = true)
@@ -539,7 +697,7 @@ namespace ExampleEnemy {
             LogIfDebugBuild($"Using held item ${heldItem.name}");
             if (heldItem is JetpackItem)
             {
-                (heldItem as JetpackItem).ExplodeJetpackServerRpc();
+                (heldItem as JetpackItem).ExplodeJetpackClientRpc();
                 DropItem();
                 return;
             }
@@ -552,7 +710,7 @@ namespace ExampleEnemy {
             {
                 try
                 {
-                    heldItem.UseItemOnClient(activateItem);
+                    heldItem.ItemActivate(activateItem);
                 } catch 
                 {
                     // Fail silently. Lethal Company attempts to get the player to drop the ladder, but we're not a player
@@ -563,6 +721,8 @@ namespace ExampleEnemy {
             if (heldItem is StunGrenadeItem)
             {
                 StunGrenadeItem grenade = heldItem as StunGrenadeItem;
+                grenade.itemAnimator.SetTrigger("pullPin");
+                grenade.itemAudio.PlayOneShot(grenade.pullPinSFX);
                 grenade.pinPulled = true;
                 DropItem();
                 return;
@@ -582,11 +742,17 @@ namespace ExampleEnemy {
                 return;
             }
 
-            heldItem.UseItemOnClient(activateItem);
+            heldItem.ItemActivate(activateItem);
+        }
+
+        [ServerRpc]
+        public void DoAnimationServerRPC(string animationName)
+        {
+            DoAnimationClientRPC(animationName);
         }
 
         [ClientRpc]
-        public void DoAnimationClientRpc(string animationName) {
+        public void DoAnimationClientRPC(string animationName) {
             LogIfDebugBuild($"Animation: {animationName}");
             creatureAnimator.SetTrigger(animationName);
         }
@@ -594,6 +760,11 @@ namespace ExampleEnemy {
         public void DrudgePlayFootstepAudio()
         {
             creatureVoice.PlayOneShot(footstepSFX);
+        }
+
+        public void DrudgePlayHandCloseAudio()
+        {
+            creatureVoice.PlayOneShot(handCloseSFX);
         }
 
         private void ToggleLight()
@@ -606,8 +777,25 @@ namespace ExampleEnemy {
             base.OnCollideWithPlayer(other);
             PlayerControllerB player = MeetsStandardPlayerCollisionConditions(other);
 
-            if (player != null && player == targetPlayer && currentBehaviourStateIndex == (int)State.ChasingPlayer && inSpecialAnimationWithPlayer == null)
+            if (player != null && currentBehaviourStateIndex == (int)State.ChasingPlayer && inSpecialAnimationWithPlayer == null && !DoesPlayerHaveAnItem(player))
             {
+                StartKillingSequenceServerRPC(player.GetComponent<NetworkObject>());
+            }
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        protected void StartKillingSequenceServerRPC(NetworkObjectReference playerRef)
+        {
+            StartKillingSequenceClientRPC(playerRef);
+        }
+
+        [ClientRpc]
+        protected void StartKillingSequenceClientRPC(NetworkObjectReference playerRef)
+        {
+            if (playerRef.TryGet(out NetworkObject playerNetworkObject, null))
+            {
+                LogIfDebugBuild("Got player reference.");
+                PlayerControllerB player = playerNetworkObject.GetComponent<PlayerControllerB>();
                 inSpecialAnimationWithPlayer = player;
                 inSpecialAnimationWithPlayer.inSpecialInteractAnimation = true;
                 inSpecialAnimationWithPlayer.inAnimationWithEnemy = this;
@@ -615,11 +803,13 @@ namespace ExampleEnemy {
             }
         }
 
+
         private IEnumerator KillPlayerAnimation(PlayerControllerB player)
         {
-            creatureAnimator.SetTrigger("startKill");
+            DoAnimationClientRPC("startKill");
             inSpecialAnimation = true;
 
+            creatureVoice.PlayOneShot(crushingSFX);
             yield return new WaitForSeconds(2f);
             if (player.inAnimationWithEnemy == this && !player.isPlayerDead)
             {
@@ -627,18 +817,19 @@ namespace ExampleEnemy {
                 player.KillPlayer(Vector3.zero, true, CauseOfDeath.Crushing, 1);
                 player.inSpecialInteractAnimation = false;
                 player.inAnimationWithEnemy = null;
-                yield return new WaitForSeconds(1f);
+                yield return new WaitForSeconds(0.8f);
             }
             inSpecialAnimationWithPlayer = null;
             inSpecialAnimation = false;
-            if (!IsOwner)
+
+            DoAnimationClientRPC("startPickUp");
+            RagdollGrabbableObject body = FindClosestDeadBody(5f);
+            if (body != null)
             {
-                yield break;
+                SetItemAsHeld(body.GetComponent<NetworkObject>());
             }
-            else
-            {
-                SwitchToBehaviourState((int)State.SearchingForPlayer);
-            }
+
+            SwitchToBehaviourState((int)State.SearchingForPlayer);
             yield break;
         }
     }
