@@ -28,12 +28,11 @@ namespace LC_Drudge {
      *   - Idle animation
      *   - Stun animation
      * - Stunning interrupts kill sequence
-     * - Kill sequence slowly damages before outright killing
+     * - Slow down kill sequence to 5 seconds
      * - Better sounds
      * - Bestiary entry
      * - Better logs for debugging
      * - Network testing
-     * - Better positioning while following player
      * - Item-specific logic (swinging a shovel, zap gun, etc.)
      */
     class LC_Drudge : EnemyAI
@@ -65,7 +64,7 @@ namespace LC_Drudge {
         private Vector3 previousPosition;
         private float velX;
         private float velZ;
-        
+        private bool stunned = false;
 
         public AudioClip footstepSFX;
         public AudioClip handCloseSFX;
@@ -73,12 +72,13 @@ namespace LC_Drudge {
         public Light drudgeLight;
         public Light drudgeLightGlow;
         public float angerLevel = 0f;
-        public float angerLevelAccelerator = 0.8f;
+        public float angerLevelAccelerator = 0.6f;
         public ulong? previousTargetPlayerId;
         public float timeSinceTargetedPreviousPlayer = 0f;
         public ulong? currentTargetPlayerId;
 
         private DoorLock closestDoor;
+        private Coroutine killingCoroutine;
 
 
         [Conditional("DEBUG")]
@@ -112,13 +112,20 @@ namespace LC_Drudge {
 
             var state = currentBehaviourStateIndex;
 
+            if (stunNormalizedTimer > 0f)
+            {
+                creatureAnimator.SetBool("stunned", true);
+                StunnedState();
+                return;
+            } else if (stunned)
+            {
+                creatureAnimator.SetBool("stunned", false);
+                stunned = false;
+            }
+
             if(GetCurrentTargetPlayer() != null && (state == (int)State.FollowPlayer || state == (int)State.AngrilyLookingAtPlayer)){
                 turnCompass.LookAt(GetCurrentTargetPlayer().gameplayCamera.transform.position);
                 transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(new Vector3(0f, turnCompass.eulerAngles.y, 0f)), 10f * Time.deltaTime);
-            }
-            if (stunNormalizedTimer > 0f)
-            {
-                agent.speed = 0f;
             }
 
             CalculateLocalAnimationVelocity();
@@ -388,6 +395,23 @@ namespace LC_Drudge {
             SetDestinationToPosition(closestDoor.transform.position - Vector3.Normalize(closerSideOfDoor));
         }
 
+        void StunnedState()
+        {
+            agent.speed = 0f;
+            if (!stunned)
+            {
+                LogIfDebugBuild("Entering stunned state");
+                stunned = true;
+                if (killingCoroutine != null)
+                {
+                    LogIfDebugBuild("Stopping killing animation");
+                    StopCoroutine(killingCoroutine);
+                    killingCoroutine = null;
+                    CancelSpecialAnimationWithPlayer();
+                }
+            }
+        }
+
         void CheckLocalPlayerForEmoteActions ()
         {
             if (currentBehaviourStateIndex != (int)State.FollowPlayer)
@@ -437,7 +461,6 @@ namespace LC_Drudge {
 
         void ChasingPlayerState()
         {
-            LogIfDebugBuild($"Current target player ${GetCurrentTargetPlayer().playerClientId}");
             if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position)){
                 LogIfDebugBuild("Stop Target Player");
                 StartSearch(transform.position);
@@ -812,7 +835,7 @@ namespace LC_Drudge {
                 inSpecialAnimationWithPlayer = player;
                 inSpecialAnimationWithPlayer.inSpecialInteractAnimation = true;
                 inSpecialAnimationWithPlayer.inAnimationWithEnemy = this;
-                StartCoroutine(KillPlayerAnimation(player)); 
+                killingCoroutine = StartCoroutine(KillPlayerAnimation(player)); 
             }
         }
 
@@ -823,7 +846,15 @@ namespace LC_Drudge {
             inSpecialAnimation = true;
 
             creatureVoice.PlayOneShot(crushingSFX);
-            yield return new WaitForSeconds(2f);
+            float secondsToCrush = 2f;
+            while (player.health > 20 && secondsToCrush > 0)
+            {
+                player.DamagePlayer(20, causeOfDeath: CauseOfDeath.Crushing, deathAnimation: 1);
+                secondsToCrush -= 0.5f;
+                yield return new WaitForSeconds(0.5f);
+            }
+            player.DamagePlayer(player.health - 1, causeOfDeath: CauseOfDeath.Crushing, deathAnimation: 1);
+            yield return new WaitForSeconds(secondsToCrush);
             if (player.inAnimationWithEnemy == this && !player.isPlayerDead)
             {
                 inSpecialAnimationWithPlayer = null;
@@ -843,6 +874,7 @@ namespace LC_Drudge {
             }
 
             SwitchToBehaviourState((int)State.SearchingForPlayer);
+            killingCoroutine = null;
             yield break;
         }
     }
