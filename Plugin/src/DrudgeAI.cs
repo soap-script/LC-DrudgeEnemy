@@ -74,9 +74,9 @@ namespace LC_Drudge {
         public Light drudgeLightGlow;
         public float angerLevel = 0f;
         public float angerLevelAccelerator = 0.8f;
-        public ulong previousTargetPlayerId;
+        public ulong? previousTargetPlayerId;
         public float timeSinceTargetedPreviousPlayer = 0f;
-        public ulong currentTargetPlayerId;
+        public ulong? currentTargetPlayerId;
 
         private DoorLock closestDoor;
 
@@ -306,11 +306,16 @@ namespace LC_Drudge {
         void SetCurrentTargetPlayerClientRPC(ulong playerId)
         {
             currentTargetPlayerId = playerId;
+            targetPlayer = GetCurrentTargetPlayer();
         }
 
         PlayerControllerB GetCurrentTargetPlayer()
         {
-            return StartOfRound.Instance.allPlayerScripts.ElementAtOrDefault((int)currentTargetPlayerId);
+            if (currentTargetPlayerId != null)
+            {
+                return StartOfRound.Instance.allPlayerScripts.ElementAtOrDefault((int)currentTargetPlayerId);
+            }
+            return null;
         }
 
         bool LocalPlayerLookingAtDrudge()
@@ -432,8 +437,8 @@ namespace LC_Drudge {
 
         void ChasingPlayerState()
         {
-            // Keep targetting closest player, unless they are over 20 units away and we can't see them
-            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position))){
+            LogIfDebugBuild($"Current target player ${GetCurrentTargetPlayer().playerClientId}");
+            if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position)){
                 LogIfDebugBuild("Stop Target Player");
                 StartSearch(transform.position);
                 SwitchToBehaviourState((int)State.SearchingForPlayer);
@@ -450,7 +455,7 @@ namespace LC_Drudge {
         void AngrilyLookingAtPlayerState()
         {
             LogIfDebugBuild($"Angrily Looking At Player: {angerLevel}");
-            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, targetPlayer.transform.position) > 20 && !HasLineOfSightToPosition(GetCurrentTargetPlayer().transform.position))){
+            if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(GetCurrentTargetPlayer().transform.position)){
                 LogIfDebugBuild("Stop Target Player");
                 StartSearch(transform.position);
                 SwitchToBehaviourState((int)State.SearchingForPlayer);
