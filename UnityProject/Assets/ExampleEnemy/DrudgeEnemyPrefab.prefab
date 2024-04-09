@@ -1790,10 +1790,8 @@ MonoBehaviour:
   drudgeLight: {fileID: 6554694542576629605}
   drudgeLightGlow: {fileID: 587362664587618778}
   angerLevel: 0
-  angerLevelAccelerator: 10
-  previousTargetPlayerId: 0
+  angerLevelAccelerator: 0.5
   timeSinceTargetedPreviousPlayer: 0
-  currentTargetPlayerId: 0
 --- !u!195 &-4307780945350878767
 NavMeshAgent:
   m_ObjectHideFlags: 0

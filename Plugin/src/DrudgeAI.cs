@@ -33,13 +33,15 @@ namespace LC_Drudge {
      * - Better logs for debugging
      * - Network testing
      * - Item-specific logic (swinging a shovel, zap gun, etc.)
+     *   - Zap/Patcher gun
+     *   - Shovel
+     *   - Walkie Talkie
+     *   - Spray Can
      */
     class LC_Drudge : EnemyAI
     {
         public Transform turnCompass;
         public Transform attackArea;
-        float playerEmoteTime;
-        bool hasActedFromEmote;
         public Transform grabTarget;
         public Transform playerTarget;
         enum State {
@@ -51,27 +53,29 @@ namespace LC_Drudge {
             OpeningDoor,
         }
 
-        public InteractTrigger drudgeTrigger;
-        public GrabbableObject heldItem;
-
-        private Vector3 previousPosition;
-        private float velX;
-        private float velZ;
-        private bool stunned = false;
-
         public AudioClip footstepSFX;
         public AudioClip handCloseSFX;
         public AudioClip crushingSFX;
         public Light drudgeLight;
         public Light drudgeLightGlow;
-        public float angerLevel = 0f;
-        public float angerLevelAccelerator = 0.6f;
-        public ulong? previousTargetPlayerId;
-        public float timeSinceTargetedPreviousPlayer = 0f;
-        public ulong? currentTargetPlayerId;
+        public InteractTrigger drudgeTrigger;
+
+        private float playerEmoteTime;
+        private bool hasActedFromEmote;
+        private Vector3 previousPosition;
+        private float velX;
+        private float velZ;
+        private bool stunned = false;
+        private float angerLevel = 0f;
+        private float angerLevelAccelerator = 1f;
+        private ulong? previousTargetPlayerId;
+        private float timeSinceTargetedPreviousPlayer = 0f;
+        private ulong? currentTargetPlayerId;
 
         private DoorLock closestDoor;
         private Coroutine killingCoroutine;
+        private Coroutine walkieTalkieCoroutine;
+        private GrabbableObject heldItem;
 
 
         [Conditional("DEBUG")]
@@ -138,7 +142,8 @@ namespace LC_Drudge {
                 case (int)State.AngrilyLookingAtPlayer:
                     agent.speed = 0f;
 
-                    angerLevel += angerLevelAccelerator * Time.deltaTime;
+                    LogIfDebugBuild($"Anger level -- ${angerLevel}");
+                    angerLevel += Time.deltaTime * angerLevelAccelerator;
                     if (angerLevel >= 1)
                     {
                         GetCurrentTargetPlayer().JumpToFearLevel(1f, true);
@@ -188,7 +193,6 @@ namespace LC_Drudge {
                 averageVelocity = 0f;
             }
             
-            LogIfDebugBuild($"averageVel -- ${averageVelocity}");
             creatureAnimator.SetFloat("averageVelocity", Mathf.Clamp(averageVelocity, -maxSpeed, maxSpeed));
 
             previousPosition = transform.position;
@@ -214,13 +218,13 @@ namespace LC_Drudge {
             if ((currentBehaviourStateIndex != (int)State.AngrilyLookingAtPlayer && currentBehaviourStateIndex != (int)State.ChasingPlayer) && angerLevel > 0)
             {
                 LogIfDebugBuild($"No reason to be angry");
-                angerLevel -= angerLevelAccelerator * Time.deltaTime;
+                angerLevel -= Time.deltaTime * angerLevelAccelerator;
             }
         }
 
         void UpdateInteractTrigger ()
         {
-            if (GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null && currentBehaviourStateIndex == (int)State.FollowPlayer)
+            if (GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null && currentBehaviourStateIndex == (int)State.FollowPlayer && !stunned)
             {
                 drudgeTrigger.interactable = true;
                 drudgeTrigger.hoverTip = "Hold [e] to give item";
@@ -236,6 +240,7 @@ namespace LC_Drudge {
             drudgeLight.color = Color.Lerp(Color.white, Color.red, angerLevel);
             drudgeLight.spotAngle = Mathf.Lerp(50, 20, angerLevel);
             drudgeLightGlow.color = Color.Lerp(Color.white, Color.red, angerLevel);
+            drudgeLight.enabled = heldItem == null;
         }
 
         void UpdatePreviousTargetPlayer()
@@ -324,7 +329,7 @@ namespace LC_Drudge {
         {
             if (currentTargetPlayerId != null)
             {
-                return StartOfRound.Instance.allPlayerScripts.ElementAtOrDefault((int)currentTargetPlayerId);
+                return StartOfRound.Instance.allPlayerScripts[(int)currentTargetPlayerId];
             }
             return null;
         }
@@ -451,7 +456,7 @@ namespace LC_Drudge {
                     } else if (playerBeingLookedAt)
                     {
                         Plugin.Logger.LogInfo("Changing Target.");
-                        SetNewTargetPlayer(playerBeingLookedAt);
+                        SetNewTargetPlayerServerRPC((int)playerBeingLookedAt.playerClientId);
                     }
                     hasActedFromEmote = true;
                 }
@@ -498,13 +503,25 @@ namespace LC_Drudge {
 
         void UpdateMovingTowardsTargetPlayer()
         {
-            if (GetCurrentTargetPlayer() && currentBehaviourStateIndex == (int)State.ChasingPlayer)
+            if (GetCurrentTargetPlayer() != null && currentBehaviourStateIndex == (int)State.ChasingPlayer)
             {
                 movingTowardsTargetPlayer = true;
             } else
             {
                 movingTowardsTargetPlayer = false;
             }
+        }
+
+        [ServerRpc]
+        void SetNewTargetPlayerServerRPC(int playerId)
+        {
+            SetNewTargetPlayerClientRPC(playerId);
+        }
+
+        [ClientRpc]
+        void SetNewTargetPlayerClientRPC(int playerId)
+        {
+            SetNewTargetPlayer(StartOfRound.Instance.allPlayerScripts[playerId]);
         }
 
         void SetNewTargetPlayer(PlayerControllerB player)
@@ -550,7 +567,7 @@ namespace LC_Drudge {
             PlayerControllerB previousTargetPlayer = GetCurrentTargetPlayer();
             TargetClosestPlayer(bufferDistance: 1.5f, requireLineOfSight: true);
 
-            if(targetPlayer == null){
+            if (targetPlayer == null){
                 // Couldn't see a player, so we check if a player is in sensing distance instead
                 TargetClosestPlayer(bufferDistance: 1.5f, requireLineOfSight: false);
                 range = senseRange;
@@ -558,7 +575,7 @@ namespace LC_Drudge {
             
             if (targetPlayer != previousTargetPlayer && targetPlayer != null)
             {
-                SetNewTargetPlayer(targetPlayer);
+                SetNewTargetPlayerServerRPC((int)targetPlayer.playerClientId);
             }
 
             return targetPlayer != null && Vector3.Distance(transform.position, targetPlayer.transform.position) < range;
@@ -581,24 +598,7 @@ namespace LC_Drudge {
 
             closestDoor = newClosestDoor;
         }
-
-        RagdollGrabbableObject FindClosestDeadBody(float range)
-        {
-            RagdollGrabbableObject closestDeadBody = null;
-            List<RagdollGrabbableObject> bodies = FindObjectsOfType<RagdollGrabbableObject>().ToList();
-            float closestDeadBodyDistance = range;
-            foreach (RagdollGrabbableObject body in bodies)
-            {
-                float dist = Vector3.Distance(transform.position, body.transform.position);
-                if (dist < range && dist < closestDeadBodyDistance)
-                {
-                    closestDeadBody = body;
-                    closestDeadBodyDistance = dist;
-                }
-            }
-            return closestDeadBody;
-        }
-        
+ 
         bool TargetClosestPlayerInAnyCase() {
             mostOptimalDistance = 2000f;
             bool canTargetPreviousPlayer = timeSinceTargetedPreviousPlayer == 0f;
@@ -620,6 +620,7 @@ namespace LC_Drudge {
             {
                 if (targetPlayer != potentialNewTargetPlayer && (potentialNewTargetPlayer.playerClientId != previousTargetPlayerId || canTargetPreviousPlayer))
                 {
+                    LogIfDebugBuild("Targetting new player");
                     targetPlayer = potentialNewTargetPlayer;
                     ChangeOwnershipOfEnemy(targetPlayer.actualClientId);
                     SetCurrentTargetPlayerServerRPC(targetPlayer.playerClientId);
@@ -669,7 +670,6 @@ namespace LC_Drudge {
 
         private void SetItemAsHeld(NetworkObject componentRef)
         {
-            ToggleLight();
             heldItem = componentRef.GetComponent<GrabbableObject>();
             heldItem.parentObject = grabTarget;
             heldItem.hasHitGround = false;
@@ -687,7 +687,6 @@ namespace LC_Drudge {
         protected void DropItemClientRPC ()
         {
             DropItem();
-            ToggleLight();
         }
 
         private void DropItem()
@@ -717,18 +716,18 @@ namespace LC_Drudge {
         }
 
         [ServerRpc]
-        public void UseHeldItemServerRPC(bool activateItem = true)
+        public void UseHeldItemServerRPC()
         {
-            UseHeldItemClientRPC(activateItem);
+            UseHeldItemClientRPC();
         }
 
         [ClientRpc]
-        public void UseHeldItemClientRPC(bool activateItem = true)
+        public void UseHeldItemClientRPC()
         {
-            UseHeldItem(activateItem);
+            UseHeldItem();
         }
 
-        public void UseHeldItem(bool activateItem = true)
+        public void UseHeldItem()
         {
             if (heldItem == null)
             {
@@ -750,7 +749,7 @@ namespace LC_Drudge {
             {
                 try
                 {
-                    heldItem.ItemActivate(activateItem);
+                    heldItem.UseItemOnClient();
                 } catch 
                 {
                     // Fail silently. Lethal Company attempts to get the player to drop the ladder, but we're not a player
@@ -781,8 +780,63 @@ namespace LC_Drudge {
                 // Spray paint handling is a little buggy right now. Need to actually get it to spray.
                 return;
             }
+            if (heldItem is WalkieTalkie)
+            {
+                if (heldItem.isBeingUsed && GetCurrentTargetPlayer() != null)
+                {
+                    if (walkieTalkieCoroutine != null)
+                    {
+                        LogIfDebugBuild("Stopping walkie talkie coroutine");
+                        StopCoroutine(walkieTalkieCoroutine);
+                        walkieTalkieCoroutine = null;
+                    } else
+                    {
+                        LogIfDebugBuild("Starting walkie talkie coroutine");
+                        walkieTalkieCoroutine = StartCoroutine(WalkieTalkieCoroutine());
+                    }
+                }
+                return;
+            }
 
-            heldItem.ItemActivate(activateItem);
+            try
+            {
+                heldItem.UseItemOnClient();
+            } catch (Exception e)
+            {
+                Plugin.Logger.LogInfo($"Encountered an error while attempting to use an item generically. Name: ${heldItem.name}. Printing error below");
+                Plugin.Logger.LogInfo(e);
+            }
+        }
+
+        private IEnumerator WalkieTalkieCoroutine()
+        {
+            if (!heldItem.isBeingUsed || GetCurrentTargetPlayer() == null)
+            {
+                LogIfDebugBuild("WalkieTalkieCoroutine -- Failed to meet initial requirements");
+                walkieTalkieCoroutine = null;
+                yield break;
+            }
+            WalkieTalkie walkie = heldItem as WalkieTalkie;
+            while (!(heldItem is WalkieTalkie))
+            {
+                PlayerControllerB currentWalkieTarget = GetCurrentTargetPlayer();
+                currentWalkieTarget.holdingWalkieTalkie = true;
+                walkie.SetPlayerSpeakingOnWalkieTalkieServerRpc((int)currentWalkieTarget.playerClientId);
+                LogIfDebugBuild("WalkieTalkieCoroutine -- Set current target player as walkie talkie owner.");
+                yield return new WaitUntil(() => !(heldItem is WalkieTalkie) || GetCurrentTargetPlayer() == null || GetCurrentTargetPlayer().playerClientId != previousTargetPlayerId);
+                currentWalkieTarget.holdingWalkieTalkie = false;
+                walkie.UnsetPlayerSpeakingOnWalkieTalkieServerRpc((int)currentWalkieTarget.playerClientId); 
+                LogIfDebugBuild("WalkieTalkieCoroutine -- Lost current target player or no longer holding walkie. Unsetting them as walie talkie owner.");
+                if (GetCurrentTargetPlayer() == null)
+                {
+                    yield return new WaitUntil(() => !(heldItem is WalkieTalkie) || GetCurrentTargetPlayer() != null);
+                    LogIfDebugBuild("WalkieTalkieCoroutine -- Found new target player.");
+                }
+            }
+
+            LogIfDebugBuild("WalkieTalkieCoroutine -- No longer holding walkie talkie. Kill coroutine.");
+            walkieTalkieCoroutine = null;
+            yield break;
         }
 
         [ServerRpc]
@@ -805,11 +859,6 @@ namespace LC_Drudge {
         public void DrudgePlayHandCloseAudio()
         {
             creatureVoice.PlayOneShot(handCloseSFX);
-        }
-
-        private void ToggleLight()
-        {
-            drudgeLight.enabled = heldItem == null;
         }
 
         public override void OnCollideWithPlayer(Collider other)
@@ -871,10 +920,12 @@ namespace LC_Drudge {
             inSpecialAnimation = false;
 
             DoAnimationClientRPC("startPickUp");
-            RagdollGrabbableObject body = FindClosestDeadBody(5f);
-            if (body != null)
+
+            GrabbableObject playerBody = player.deadBody?.grabBodyObject;
+
+            if (playerBody != null && playerBody.grabbable)
             {
-                SetItemAsHeld(body.GetComponent<NetworkObject>());
+                SetItemAsHeld(playerBody.GetComponent<NetworkObject>());
             }
 
             SwitchToBehaviourState((int)State.SearchingForPlayer);
