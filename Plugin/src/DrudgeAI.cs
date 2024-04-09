@@ -188,7 +188,6 @@ namespace LC_Drudge {
                 Vector2 currentForward = new Vector2(transform.forward.x, transform.forward.z);
 
                 float angle = Vector2.SignedAngle(vectorToTargetDestination, currentForward) / 100;
-                LogIfDebugBuild($"angle -- ${angle}");
                 creatureAnimator.SetFloat("chaseAngle", angle);
             }
 
@@ -197,7 +196,13 @@ namespace LC_Drudge {
             velZ = Mathf.Lerp(velZ, agentLocalVelocity.z, 10f * Time.deltaTime);
 
             float averageVelocity = (velX + velZ) / 2;
+
+            if (Mathf.Abs(averageVelocity) < 0.1f)
+            {
+                averageVelocity = 0f;
+            }
             
+            LogIfDebugBuild($"averageVel -- ${averageVelocity}");
             creatureAnimator.SetFloat("averageVelocity", Mathf.Clamp(averageVelocity, -maxSpeed, maxSpeed));
 
             previousPosition = transform.position;
