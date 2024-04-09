@@ -27,7 +27,6 @@ namespace LC_Drudge {
      *   - Walk cycle
      *   - Idle animation
      *   - Stun animation
-     * - Stunning interrupts kill sequence
      * - Slow down kill sequence to 5 seconds
      * - Better sounds
      * - Bestiary entry
@@ -128,7 +127,7 @@ namespace LC_Drudge {
                 transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(new Vector3(0f, turnCompass.eulerAngles.y, 0f)), 10f * Time.deltaTime);
             }
 
-            CalculateLocalAnimationVelocity();
+            CalculateLocalAnimationVelocityAndDirection();
 
             UpdateLightSource();
             UpdateInteractTrigger();
@@ -179,15 +178,29 @@ namespace LC_Drudge {
             }
         }
 
-        Vector3 CalculateLocalAnimationVelocity(float maxSpeed = 2f)
+        void CalculateLocalAnimationVelocityAndDirection(float maxSpeed = 2f)
         {
+            if (GetCurrentTargetPlayer())
+            {
+                Vector2 targetDestinationVector2 = new Vector2(GetCurrentTargetPlayer().transform.position.x, GetCurrentTargetPlayer().transform.position.z);
+                Vector2 currentPositionVector2 = new Vector2(transform.position.x, transform.position.z);
+                Vector2 vectorToTargetDestination = targetDestinationVector2 - currentPositionVector2;
+                Vector2 currentForward = new Vector2(transform.forward.x, transform.forward.z);
+
+                float angle = Vector2.SignedAngle(vectorToTargetDestination, currentForward) / 100;
+                LogIfDebugBuild($"angle -- ${angle}");
+                creatureAnimator.SetFloat("chaseAngle", angle);
+            }
+
             Vector3 agentLocalVelocity = transform.InverseTransformDirection(Vector3.ClampMagnitude(transform.position - previousPosition, 1f) / (Time.deltaTime * 2f));
             velX = Mathf.Lerp(velX, agentLocalVelocity.x, 10f * Time.deltaTime);
-            creatureAnimator.SetFloat("velocityX", Mathf.Clamp(velX, -maxSpeed, maxSpeed));
             velZ = Mathf.Lerp(velZ, agentLocalVelocity.z, 10f * Time.deltaTime);
-            creatureAnimator.SetFloat("velocityZ", Mathf.Clamp(velZ, -maxSpeed, maxSpeed));
+
+            float averageVelocity = (velX + velZ) / 2;
+            
+            creatureAnimator.SetFloat("averageVelocity", Mathf.Clamp(averageVelocity, -maxSpeed, maxSpeed));
+
             previousPosition = transform.position;
-            return transform.InverseTransformDirection(Vector3.ClampMagnitude(transform.position - previousPosition, 1f) / (Time.deltaTime * 2f));
         }
 
         void UpdateSpecialAnimation()
