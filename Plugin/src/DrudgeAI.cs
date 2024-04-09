@@ -38,14 +38,8 @@ namespace LC_Drudge {
     {
         public Transform turnCompass;
         public Transform attackArea;
-        float timeSinceHittingLocalPlayer;
-        float timeSinceNewRandPos;
         float playerEmoteTime;
         bool hasActedFromEmote;
-        Vector3 positionRandomness;
-        Vector3 StalkPos;
-        System.Random enemyRandom;
-        bool isDeadAnimationDone;
         public Transform grabTarget;
         public Transform playerTarget;
         enum State {
@@ -88,14 +82,9 @@ namespace LC_Drudge {
         public override void Start() {
             base.Start();
             LogIfDebugBuild("Drudge Enemy Spawned");
-            timeSinceHittingLocalPlayer = 0;
             creatureAnimator.SetTrigger("startIdle");
-            timeSinceNewRandPos = 0;
-            positionRandomness = new Vector3(0, 0, 0);
-            enemyRandom = new System.Random(StartOfRound.Instance.randomMapSeed + thisEnemyIndex);
             playerEmoteTime = 0;
             hasActedFromEmote = false;
-            isDeadAnimationDone = false; 
             currentBehaviourStateIndex = (int)State.SearchingForPlayer;
             drudgeTrigger.onInteract.AddListener(GrabScrapFromPlayer);
             drudgeLight.enabled = true;
@@ -105,9 +94,6 @@ namespace LC_Drudge {
 
         public override void Update() {
             base.Update();
-
-            timeSinceHittingLocalPlayer += Time.deltaTime;
-            timeSinceNewRandPos += Time.deltaTime;
 
             var state = currentBehaviourStateIndex;
 
