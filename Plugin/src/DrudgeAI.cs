@@ -394,7 +394,7 @@ namespace LC_Drudge {
                 DespawnHeldItemServerRPC();
 
                 closestDoor.UnlockDoorSyncWithServer();
-                closestDoor.gameObject.GetComponent<AnimatedObjectTrigger>().TriggerAnimationNonPlayer(GetComponent<EnemyAICollisionDetect>().mainScript.useSecondaryAudiosOnAnimatedObjects, true, false);
+                closestDoor.gameObject.GetComponent<AnimatedObjectTrigger>().TriggerAnimationNonPlayer(false, true, false);
                 closestDoor.OpenDoorAsEnemyServerRpc();
                 closestDoor = null;
                 SwitchToBehaviourState((int)State.SearchingForPlayer);
@@ -797,6 +797,15 @@ namespace LC_Drudge {
                 }
                 return;
             }
+            if (heldItem is ShotgunItem)
+            {
+                ShotgunItem shotgun = heldItem as ShotgunItem;
+                // Specifically check if there's no shells loaded, otherwise it would attempt to reload
+                if (shotgun.shellsLoaded == 0)
+                {
+                    return;
+                }
+            }
 
             try
             {
@@ -816,9 +825,9 @@ namespace LC_Drudge {
                 walkieTalkieCoroutine = null;
                 yield break;
             }
-            WalkieTalkie walkie = heldItem as WalkieTalkie;
-            while (!(heldItem is WalkieTalkie))
+            while (heldItem is WalkieTalkie)
             {
+                WalkieTalkie walkie = heldItem as WalkieTalkie;
                 PlayerControllerB currentWalkieTarget = GetCurrentTargetPlayer();
                 currentWalkieTarget.holdingWalkieTalkie = true;
                 walkie.SetPlayerSpeakingOnWalkieTalkieServerRpc((int)currentWalkieTarget.playerClientId);
