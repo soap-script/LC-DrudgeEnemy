@@ -32,6 +32,7 @@ namespace LC_Drudge {
      * - Bestiary entry
      * - Better logs for debugging
      * - Network testing
+     * - Make the Key item usage work if the player points at a locked door, instead of pointing at the Drudge
      * - Item-specific logic (swinging a shovel, zap gun, etc.)
      *   - Zap/Patcher gun
      *   - Shovel
@@ -361,8 +362,7 @@ namespace LC_Drudge {
             // Keep targetting closest player, unless they are over 20 units away and we can't see them.
             if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(GetCurrentTargetPlayer().transform.position))){
                 LogIfDebugBuild("Stop Target Player");
-                StartSearch(transform.position);
-                SwitchToBehaviourState((int)State.SearchingForPlayer);
+                SwitchToSearchState();
                 return;
             }
             if (!DoesPlayerHaveAnItem(GetCurrentTargetPlayer()) && !heldItem)
@@ -379,13 +379,13 @@ namespace LC_Drudge {
         {
             if (!closestDoor || !heldItem)
             {
-                SwitchToBehaviourState((int)State.SearchingForPlayer);
+                SwitchToSearchState();
                 return;
             }
             if (!closestDoor.isLocked)
             {
                 closestDoor = null;
-                SwitchToBehaviourState((int)State.SearchingForPlayer);
+                SwitchToSearchState();
                 return;
             }
             float distanceToDoor = Vector3.Distance(closestDoor.transform.position, transform.position);
@@ -397,7 +397,7 @@ namespace LC_Drudge {
                 closestDoor.gameObject.GetComponent<AnimatedObjectTrigger>().TriggerAnimationNonPlayer(false, true, false);
                 closestDoor.OpenDoorAsEnemyServerRpc();
                 closestDoor = null;
-                SwitchToBehaviourState((int)State.SearchingForPlayer);
+                SwitchToSearchState();
                 return;
             }
             Vector3 closerSideOfDoor = closestDoor.transform.position - transform.position;
@@ -419,6 +419,12 @@ namespace LC_Drudge {
                     CancelSpecialAnimationWithPlayer();
                 }
             }
+        }
+
+        void SwitchToSearchState()
+        {
+            StartSearch(transform.position);
+            SwitchToBehaviourState((int)State.SearchingForPlayer);
         }
 
         void CheckLocalPlayerForEmoteActions ()
@@ -472,8 +478,7 @@ namespace LC_Drudge {
         {
             if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position)){
                 LogIfDebugBuild("Stop Target Player");
-                StartSearch(transform.position);
-                SwitchToBehaviourState((int)State.SearchingForPlayer);
+                SwitchToSearchState();
                 return;
             }
             if (DoesPlayerHaveAnItem(GetCurrentTargetPlayer()))
@@ -489,8 +494,7 @@ namespace LC_Drudge {
             LogIfDebugBuild($"Angrily Looking At Player: {angerLevel}");
             if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(GetCurrentTargetPlayer().transform.position)){
                 LogIfDebugBuild("Stop Target Player");
-                StartSearch(transform.position);
-                SwitchToBehaviourState((int)State.SearchingForPlayer);
+                SwitchToSearchState();
                 return;
             }
             if (DoesPlayerHaveAnItem(GetCurrentTargetPlayer()) || heldItem != null)
@@ -800,7 +804,7 @@ namespace LC_Drudge {
             if (heldItem is ShotgunItem)
             {
                 ShotgunItem shotgun = heldItem as ShotgunItem;
-                // Specifically check if there's no shells loaded, otherwise it would attempt to reload
+                // Specifically check if there's no shells loaded, otherwise the shotgun would attempt to reload
                 if (shotgun.shellsLoaded == 0)
                 {
                     return;
@@ -937,7 +941,7 @@ namespace LC_Drudge {
                 SetItemAsHeld(playerBody.GetComponent<NetworkObject>());
             }
 
-            SwitchToBehaviourState((int)State.SearchingForPlayer);
+            SwitchToSearchState();
             killingCoroutine = null;
             yield break;
         }
