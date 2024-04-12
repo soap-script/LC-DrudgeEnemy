@@ -447,7 +447,6 @@ namespace LC_Drudge {
                 }
                 if (playerEmoteTime > 0.03 && !hasActedFromEmote && (lookingAtDrudge || lookingAtGround || playerBeingLookedAt != null))
                 {
-
                     Plugin.Logger.LogInfo($"Player ${localPlayer.playerClientId} has emoted! Attempting action.");
                     if (lookingAtGround)
                     {
@@ -465,6 +464,14 @@ namespace LC_Drudge {
                         SetNewTargetPlayerServerRPC((int)playerBeingLookedAt.playerClientId);
                     }
                     hasActedFromEmote = true;
+                }
+
+                // Reset timer if we've acted from the emote and the player is still pointing
+                if (hasActedFromEmote && playerEmoteTime > 0.1)
+                {
+                    Plugin.Logger.LogInfo("Resetting player emote check");
+                    hasActedFromEmote = false;
+                    playerEmoteTime = 0;
                 }
             }
             else
