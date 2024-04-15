@@ -14,14 +14,13 @@ namespace LC_Drudge {
         // The GUID is also used for the config file name by default.
         public const string ModGUID = "soapsscript." + PluginInfo.PLUGIN_NAME;
         internal static new ManualLogSource Logger;
-        internal static PluginConfig BoundConfig { get; private set; } = null;
+        internal static PluginConfig DrudgeConfig { get; private set; } = null;
         public static AssetBundle ModAssets;
 
         private void Awake() {
             Logger = base.Logger;
 
-            // If you don't want your mod to use a configuration file, you can remove this line, Configuration.cs, and other references.
-            BoundConfig = new PluginConfig(this);
+            DrudgeConfig = new PluginConfig(this);
 
             // This should be ran before Network Prefabs are registered. 
             InitializeNetworkBehaviours();
@@ -45,7 +44,7 @@ namespace LC_Drudge {
             // Network Prefabs need to be registered. See https://docs-multiplayer.unity3d.com/netcode/current/basics/object-spawning/
             // LethalLib registers prefabs on GameNetworkManager.Start.
             NetworkPrefabs.RegisterNetworkPrefab(DrudgeEnemy.enemyPrefab);
-			Enemies.RegisterEnemy(DrudgeEnemy, BoundConfig.SpawnWeight.Value, Levels.LevelTypes.All, Enemies.SpawnType.Default, DrudgeEnemyTN, DrudgeEnemyTK);
+			Enemies.RegisterEnemy(DrudgeEnemy, DrudgeConfig.spawnWeight.Value, Levels.LevelTypes.All, Enemies.SpawnType.Default, DrudgeEnemyTN, DrudgeEnemyTK);
             
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
         }

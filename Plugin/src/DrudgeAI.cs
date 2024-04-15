@@ -11,6 +11,7 @@ using UnityEngine;
 using UnityEngine.Animations.Rigging;
 using UnityEngine.SocialPlatforms;
 using UnityEngine.UIElements;
+using LC_Drudge.Configuration;
 
 namespace LC_Drudge {
 
@@ -32,7 +33,6 @@ namespace LC_Drudge {
      * - Bestiary entry
      * - Better logs for debugging
      * - Network testing
-     * - Make the Key item usage work if the player points at a locked door, instead of pointing at the Drudge
      * - Item-specific logic (swinging a shovel, zap gun, etc.)
      *   - Zap/Patcher gun
      *   - Shovel
@@ -41,6 +41,8 @@ namespace LC_Drudge {
      */
     class LC_Drudge : EnemyAI
     {
+        internal static PluginConfig DrudgeConfig { get; private set; } = null;
+
         public Transform turnCompass;
         public Transform attackArea;
         public Transform grabTarget;
@@ -227,10 +229,16 @@ namespace LC_Drudge {
         {
             if (GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer != null && currentBehaviourStateIndex == (int)State.FollowPlayer && !stunned)
             {
-                drudgeTrigger.interactable = true;
-                drudgeTrigger.hoverTip = "Hold [e] to give item";
-            }
-            else
+                if (!Plugin.DrudgeConfig.canCarryTwoHanded.Value && GameNetworkManager.Instance.localPlayerController.currentlyHeldObjectServer.itemProperties.twoHanded)
+                {
+                    drudgeTrigger.interactable = false;
+                    drudgeTrigger.hoverTip = "";
+                } else
+                {
+                    drudgeTrigger.interactable = true;
+                    drudgeTrigger.hoverTip = "Hold [e] to give item";
+                }
+            } else
             {
                 drudgeTrigger.interactable = false;
                 drudgeTrigger.hoverTip = "";
@@ -361,7 +369,7 @@ namespace LC_Drudge {
         {
             PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
             RaycastHit raycastHit;
-            if (Physics.Raycast(new Ray(localPlayer.gameplayCamera.transform.position, localPlayer.gameplayCamera.transform.forward), out raycastHit, 15f))
+            if (Physics.Raycast(new Ray(localPlayer.gameplayCamera.transform.position, localPlayer.gameplayCamera.transform.forward), out raycastHit, 15f, 2816))
             {
                 DoorLock component = raycastHit.transform.GetComponent<DoorLock>();
                 return component;
@@ -467,7 +475,7 @@ namespace LC_Drudge {
                 {
                     LogIfDebugBuild($"Player ${localPlayer.playerClientId} looking at ${playerBeingLookedAt.playerClientId}");
                 }
-                if (playerEmoteTime > 0.03 && !hasActedFromEmote && (lookingAtDrudge || lookingAtGround || playerBeingLookedAt != null))
+                if (playerEmoteTime > 0.03 && !hasActedFromEmote && (lookingAtDrudge || lookingAtGround || playerBeingLookedAt != null || (doorBeingLookedAt != null && heldItem is KeyItem)))
                 {
                     Plugin.Logger.LogInfo($"Player ${localPlayer.playerClientId} has emoted! Attempting action.");
                     if (lookingAtGround)
@@ -475,8 +483,7 @@ namespace LC_Drudge {
                         Plugin.Logger.LogInfo("Dropping Item.");
                         DropItemServerRPC();
                         DoAnimationServerRPC("startDrop");
-                    }
-                    else if (lookingAtDrudge)
+                    } else if (lookingAtDrudge)
                     { 
                         Plugin.Logger.LogInfo("Using Item.");
                         UseHeldItemServerRPC(); 
@@ -500,8 +507,7 @@ namespace LC_Drudge {
                     hasActedFromEmote = false;
                     playerEmoteTime = 0;
                 }
-            }
-            else
+            } else
             {
                 playerEmoteTime = 0;
                 hasActedFromEmote = false;
@@ -569,8 +575,7 @@ namespace LC_Drudge {
             if (player.playerClientId == previousTargetPlayerId && cannotTargetPreviousPlayer)
             {
                 LogIfDebugBuild("Could not set new target player");
-            }
-            else {
+            } else {
                 LogIfDebugBuild($"Setting new target player ${player.playerClientId}");
                 targetPlayer = player;
                 currentTargetPlayerId = player.playerClientId;
@@ -581,15 +586,21 @@ namespace LC_Drudge {
 
         bool DoesPlayerHaveAnItem(PlayerControllerB player)
         {
-            GrabbableObject[] itemSlots = player.ItemSlots;
-            for (int i = 0; i < itemSlots.Length; i++)
+            if (Plugin.DrudgeConfig.canKillEmptyHanded.Value)
             {
-                if (itemSlots[i] != null)
+                return player.currentlyHeldObjectServer != null;
+            } else
+            {
+                GrabbableObject[] itemSlots = player.ItemSlots;
+                for (int i = 0; i < itemSlots.Length; i++)
                 {
-                    return true;
+                    if (itemSlots[i] != null)
+                    {
+                        return true;
+                    }
                 }
+                return false;
             }
-            return false;
         }
 
         void FollowPlayer()
@@ -653,8 +664,7 @@ namespace LC_Drudge {
             if (potentialNewTargetPlayer == null)
             {
                 return false;
-            }
-            else
+            } else
             {
                 if (targetPlayer != potentialNewTargetPlayer && (potentialNewTargetPlayer.playerClientId != previousTargetPlayerId || canTargetPreviousPlayer))
                 {
@@ -669,13 +679,19 @@ namespace LC_Drudge {
 
         public void GrabScrapFromPlayer(PlayerControllerB player)
         {
-            Plugin.Logger.LogInfo("Attempting to grab scrap from player");
+            LogIfDebugBuild("Attempting to grab scrap from player");
+            if (!Plugin.DrudgeConfig.canCarryTwoHanded.Value && player.currentlyHeldObjectServer.itemProperties.twoHanded)
+            {
+                LogIfDebugBuild("Tried to grab scrap, but item is two handed and config is set to false");
+                return;
+            }
             if (heldItem != null)
             {
                 DropItemServerRPC();
             }
             if (player == null) {
                 Plugin.Logger.LogError("Trying to grab scrap, but couldn't find player!");
+                return;
             }
             DoAnimationServerRPC("startPickUp");
             GrabbableObject component = player.currentlyHeldObjectServer;
