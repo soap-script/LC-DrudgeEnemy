@@ -1,10 +1,7 @@
 ManifestFileVersion: 0
-CRC: 98296095
+CRC: 1576668197
 AssetBundleManifest:
   AssetBundleInfos:
     Info_0:
       Name: drudge-assets
-      Dependencies: {}
-    Info_1:
-      Name: modassets
       Dependencies: {}

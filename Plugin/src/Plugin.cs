@@ -36,15 +36,30 @@ namespace LC_Drudge {
                 return;
             }
 
-            // We load our assets from our asset bundle. Remember to rename them both here and in our Unity project.
+            // We load our assets from our asset bundle.
             var DrudgeEnemy = ModAssets.LoadAsset<EnemyType>("DrudgeEnemy");
-            var DrudgeEnemyTN = ModAssets.LoadAsset<TerminalNode>("ExampleEnemyTN");
-            var DrudgeEnemyTK = ModAssets.LoadAsset<TerminalKeyword>("ExampleEnemyTK");
+
+            TerminalNode drudgeNode = ScriptableObject.CreateInstance<TerminalNode>();
+            drudgeNode.displayText = "DRUDGE\r\n\r\nSigurd's danger level: 50%\r\n\r\nScientific name: Laborius invictus\r\n\r\n" +
+                "Theorized to be a distant relative of vir colligerus, the \"coil-head\", Drudges are believed to have once been manufactured " +
+                "en masse for the sole purpose of performing constant menial tasks; primarily those involving giving and receiving miscellaneous " +
+                "objects to and from their superiors.\r\n\r\nA Drudge's anatomy consists of two angular metallic legs supporting a steel body, which " +
+                "is in turn attached to a singular, crane-like appendage used for wielding various degrees of cargo.\r\n\r\nIt should be noted " +
+                "that, due to the gradual decay of internal mechanisms which dictate their logic, they have been known to insufficiently distinguish a " +
+                "superior from the objects they were created to transport.\r\n\r\nIf approached by a Drudge, do not allow yourself to be mistaken for " +
+                "anything other than its master. As long as either one of you has at least one item of interest on their person, their presence should " +
+                "prove more beneficial than harmful.";
+            drudgeNode.clearPreviousText = true;
+            drudgeNode.maxCharactersToType = 2000;
+            drudgeNode.creatureName = "Drudge";
+            drudgeNode.creatureFileID = 1089;
+
+            TerminalKeyword drudgeKeyword = TerminalUtils.CreateTerminalKeyword("drudge", specialKeywordResult: drudgeNode);
             
             // Network Prefabs need to be registered. See https://docs-multiplayer.unity3d.com/netcode/current/basics/object-spawning/
             // LethalLib registers prefabs on GameNetworkManager.Start.
             NetworkPrefabs.RegisterNetworkPrefab(DrudgeEnemy.enemyPrefab);
-			Enemies.RegisterEnemy(DrudgeEnemy, DrudgeConfig.spawnWeight.Value, Levels.LevelTypes.All, Enemies.SpawnType.Default, DrudgeEnemyTN, DrudgeEnemyTK);
+			Enemies.RegisterEnemy(DrudgeEnemy, DrudgeConfig.spawnWeight.Value, Levels.LevelTypes.All, Enemies.SpawnType.Default, drudgeNode, drudgeKeyword);
             
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
         }
