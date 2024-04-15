@@ -345,22 +345,34 @@ namespace LC_Drudge {
             return Vector3.Dot(GameNetworkManager.Instance.localPlayerController.gameplayCamera.transform.forward, Vector3.down) > 0.5;
         }
 
-        PlayerControllerB LocalPlayerLookingAtOtherPlayer()
+        T LocalPlayerLookingAtObject<T> (int layer)
         {
             PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
             RaycastHit raycastHit;
-            if (Physics.Raycast(new Ray(localPlayer.gameplayCamera.transform.position, localPlayer.gameplayCamera.transform.forward), out raycastHit, 15f, 8))
+            if (Physics.Raycast(new Ray(localPlayer.gameplayCamera.transform.position, localPlayer.gameplayCamera.transform.forward), out raycastHit, 15f, layer))
             {
-                PlayerControllerB component = raycastHit.transform.GetComponent<PlayerControllerB>();
+                T component = raycastHit.transform.GetComponent<T>();
                 return component;
             }
-            return null;
+            return default;
+        }
+
+        DoorLock LocalPlayerLookingAtDoor ()
+        {
+            PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
+            RaycastHit raycastHit;
+            if (Physics.Raycast(new Ray(localPlayer.gameplayCamera.transform.position, localPlayer.gameplayCamera.transform.forward), out raycastHit, 15f))
+            {
+                DoorLock component = raycastHit.transform.GetComponent<DoorLock>();
+                return component;
+            }
+            return default;
         }
 
         void FollowPlayerState()
         {
             // Keep targetting closest player, unless they are over 20 units away and we can't see them.
-            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(GetCurrentTargetPlayer().transform.position))){
+            if (!TargetClosestPlayerInAnyCase() || (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !CheckLineOfSightForPosition(GetCurrentTargetPlayer().transform.position))){
                 LogIfDebugBuild("Stop Target Player");
                 SwitchToSearchState();
                 return;
@@ -438,9 +450,19 @@ namespace LC_Drudge {
             {
                 playerEmoteTime += Time.deltaTime;
                 LogIfDebugBuild($"Player ${localPlayer.playerClientId} emote time - {playerEmoteTime}");
+
                 bool lookingAtDrudge = LocalPlayerLookingAtDrudge();
+
                 bool lookingAtGround = LocalPlayerLookingAtGround();
-                PlayerControllerB playerBeingLookedAt = LocalPlayerLookingAtOtherPlayer();
+
+                PlayerControllerB playerBeingLookedAt = LocalPlayerLookingAtObject<PlayerControllerB>(8);
+                if (playerBeingLookedAt == GameNetworkManager.Instance.localPlayerController)
+                {
+                    playerBeingLookedAt = null;
+                }
+
+                DoorLock doorBeingLookedAt = LocalPlayerLookingAtDoor();
+
                 if (playerBeingLookedAt != null)
                 {
                     LogIfDebugBuild($"Player ${localPlayer.playerClientId} looking at ${playerBeingLookedAt.playerClientId}");
@@ -462,6 +484,11 @@ namespace LC_Drudge {
                     {
                         Plugin.Logger.LogInfo("Changing Target.");
                         SetNewTargetPlayerServerRPC((int)playerBeingLookedAt.playerClientId);
+                    } else if (doorBeingLookedAt && heldItem is KeyItem)
+                    {
+                        Plugin.Logger.LogInfo("Attempting to unlock door from pointing");
+                        closestDoor = doorBeingLookedAt;
+                        SwitchToBehaviourState((int)State.OpeningDoor);
                     }
                     hasActedFromEmote = true;
                 }
@@ -483,7 +510,7 @@ namespace LC_Drudge {
 
         void ChasingPlayerState()
         {
-            if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(targetPlayer.transform.position)){
+            if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !CheckLineOfSightForPosition(targetPlayer.transform.position)){
                 LogIfDebugBuild("Stop Target Player");
                 SwitchToSearchState();
                 return;
@@ -499,7 +526,7 @@ namespace LC_Drudge {
         void AngrilyLookingAtPlayerState()
         {
             LogIfDebugBuild($"Angrily Looking At Player: {angerLevel}");
-            if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !HasLineOfSightToPosition(GetCurrentTargetPlayer().transform.position)){
+            if (Vector3.Distance(transform.position, GetCurrentTargetPlayer().transform.position) > 20 && !CheckLineOfSightForPosition(GetCurrentTargetPlayer().transform.position)){
                 LogIfDebugBuild("Stop Target Player");
                 SwitchToSearchState();
                 return;
@@ -721,7 +748,7 @@ namespace LC_Drudge {
             heldItem = null;
         }
 
-        public override void HitEnemy(int force = 1, PlayerControllerB playerWhoHit = null, bool playHitSFX = false) {
+        public override void HitEnemy(int force = 1, PlayerControllerB playerWhoHit = null, bool playHitSFX = false, int hitId = -1) {
             base.HitEnemy(force, playerWhoHit, playHitSFX);
             UseHeldItemServerRPC();
         }
