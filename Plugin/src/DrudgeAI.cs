@@ -863,7 +863,7 @@ namespace LC_Drudge {
             } catch (Exception e)
             {
                 LogIfDebugBuild($"Encountered an error while attempting to use an item generically. Name: ${heldItem.name}. Printing error below");
-                LogIfDebugBuild(e);
+                LogIfDebugBuild($"{e}");
             }
         }
 
