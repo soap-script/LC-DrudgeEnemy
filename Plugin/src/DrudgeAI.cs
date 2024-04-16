@@ -143,7 +143,7 @@ namespace LC_Drudge {
                     break;
 
                 case (int)State.ChasingPlayer:
-                    agent.speed = 8f * carryWeightMultiplier;
+                    agent.speed = 8f;
                     break;
 
                 case (int)State.AngrilyLookingAtPlayer:
