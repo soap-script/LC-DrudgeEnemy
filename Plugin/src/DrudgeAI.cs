@@ -80,7 +80,6 @@ namespace LC_Drudge {
         private Coroutine walkieTalkieCoroutine;
         private GrabbableObject heldItem;
 
-
         [Conditional("DEBUG")]
         void LogIfDebugBuild(string text) {
             Plugin.Logger.LogInfo(text);
@@ -365,18 +364,6 @@ namespace LC_Drudge {
             return default;
         }
 
-        DoorLock LocalPlayerLookingAtDoor ()
-        {
-            PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
-            RaycastHit raycastHit;
-            if (Physics.Raycast(new Ray(localPlayer.gameplayCamera.transform.position, localPlayer.gameplayCamera.transform.forward), out raycastHit, 15f, 2816))
-            {
-                DoorLock component = raycastHit.transform.GetComponent<DoorLock>();
-                return component;
-            }
-            return default;
-        }
-
         void FollowPlayerState()
         {
             // Keep targetting closest player, unless they are over 20 units away and we can't see them.
@@ -469,7 +456,7 @@ namespace LC_Drudge {
                     playerBeingLookedAt = null;
                 }
 
-                DoorLock doorBeingLookedAt = LocalPlayerLookingAtDoor();
+                DoorLock doorBeingLookedAt = LocalPlayerLookingAtObject<DoorLock>(2816);
 
                 if (playerBeingLookedAt != null)
                 {
