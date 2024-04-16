@@ -430,6 +430,11 @@ namespace LC_Drudge {
                     killingCoroutine = null;
                     CancelSpecialAnimationWithPlayer();
                 }
+
+                if (heldItem != null)
+                {
+                    DropItemServerRPC();
+                }
             }
         }
 
