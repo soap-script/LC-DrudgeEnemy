@@ -30,7 +30,6 @@ namespace LC_Drudge {
      *   - Stun animation
      * - Slow down kill sequence to 5 seconds
      * - Better sounds
-     * - Bestiary entry
      * - Better logs for debugging
      * - Network testing
      * - Item-specific logic (swinging a shovel, zap gun, etc.)
@@ -82,7 +81,7 @@ namespace LC_Drudge {
 
         [Conditional("DEBUG")]
         void LogIfDebugBuild(string text) {
-            Plugin.Logger.LogInfo(text);
+            LogIfDebugBuild(text);
         }
 
         public override void Start() {
@@ -474,23 +473,23 @@ namespace LC_Drudge {
                 }
                 if (playerEmoteTime > 0.03 && !hasActedFromEmote && (lookingAtDrudge || lookingAtGround || playerBeingLookedAt != null || (doorBeingLookedAt != null && heldItem is KeyItem)))
                 {
-                    Plugin.Logger.LogInfo($"Player ${localPlayer.playerClientId} has emoted! Attempting action.");
+                    LogIfDebugBuild($"Player ${localPlayer.playerClientId} has emoted! Attempting action.");
                     if (lookingAtGround)
                     {
-                        Plugin.Logger.LogInfo("Dropping Item.");
+                        LogIfDebugBuild("Dropping Item.");
                         DropItemServerRPC();
                         DoAnimationServerRPC("startDrop");
                     } else if (lookingAtDrudge)
                     { 
-                        Plugin.Logger.LogInfo("Using Item.");
+                        LogIfDebugBuild("Using Item.");
                         UseHeldItemServerRPC(); 
                     } else if (playerBeingLookedAt)
                     {
-                        Plugin.Logger.LogInfo("Changing Target.");
+                        LogIfDebugBuild("Changing Target.");
                         SetNewTargetPlayerServerRPC((int)playerBeingLookedAt.playerClientId);
                     } else if (doorBeingLookedAt && heldItem is KeyItem)
                     {
-                        Plugin.Logger.LogInfo("Attempting to unlock door from pointing");
+                        LogIfDebugBuild("Attempting to unlock door from pointing");
                         closestDoor = doorBeingLookedAt;
                         SwitchToBehaviourState((int)State.OpeningDoor);
                     }
@@ -500,7 +499,7 @@ namespace LC_Drudge {
                 // Reset timer if we've acted from the emote and the player is still pointing
                 if (hasActedFromEmote && playerEmoteTime > 0.1)
                 {
-                    Plugin.Logger.LogInfo("Resetting player emote check");
+                    LogIfDebugBuild("Resetting player emote check");
                     hasActedFromEmote = false;
                     playerEmoteTime = 0;
                 }
@@ -742,10 +741,10 @@ namespace LC_Drudge {
 
         private void DropItem()
         {
-            Plugin.Logger.LogInfo("Attempting to drop");
+            LogIfDebugBuild("Attempting to drop");
             if (heldItem == null)
             {
-                Plugin.Logger.LogInfo("Attempted to drop something, but holding nothing!");
+                LogIfDebugBuild("Attempted to drop something, but holding nothing!");
                 return;
             };
 
@@ -863,8 +862,8 @@ namespace LC_Drudge {
                 heldItem.UseItemOnClient();
             } catch (Exception e)
             {
-                Plugin.Logger.LogInfo($"Encountered an error while attempting to use an item generically. Name: ${heldItem.name}. Printing error below");
-                Plugin.Logger.LogInfo(e);
+                LogIfDebugBuild($"Encountered an error while attempting to use an item generically. Name: ${heldItem.name}. Printing error below");
+                LogIfDebugBuild(e);
             }
         }
 
