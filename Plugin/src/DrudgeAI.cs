@@ -127,18 +127,23 @@ namespace LC_Drudge {
             UpdateAngerLevel();
             UpdateMovingTowardsTargetPlayer();
             UpdatePreviousTargetPlayer();
+            float carryWeightMultiplier = 1f;
+            if (heldItem != null)
+            {
+                carryWeightMultiplier = 1f - Mathf.Clamp(Mathf.InverseLerp(0f, 1f, heldItem.itemProperties.weight - 1f), 0f, 0.4f);
+            }
 
             switch(currentBehaviourStateIndex) {
                 case (int)State.SearchingForPlayer:
-                    agent.speed = 3f;
+                    agent.speed = 3f * carryWeightMultiplier;
                     break;
 
                 case (int)State.FollowPlayer:
-                    agent.speed = 5f;
+                    agent.speed = 5f * carryWeightMultiplier;
                     break;
 
                 case (int)State.ChasingPlayer:
-                    agent.speed = 8f;
+                    agent.speed = 8f * carryWeightMultiplier;
                     break;
 
                 case (int)State.AngrilyLookingAtPlayer:
@@ -155,7 +160,7 @@ namespace LC_Drudge {
                     break;
 
                 case (int)State.KillingPlayer:
-                    agent.speed = 0;
+                    agent.speed = 0f;
                     if (inSpecialAnimationWithPlayer == null)
                     {
                         SwitchToBehaviourState((int)State.ChasingPlayer);
