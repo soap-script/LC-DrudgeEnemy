@@ -32,11 +32,9 @@ namespace LC_Drudge {
      * - Better sounds
      * - Better logs for debugging
      * - Network testing
-     * - Item-specific logic (swinging a shovel, zap gun, etc.)
-     *   - Zap/Patcher gun
+     * - Item-specific logic
      *   - Shovel
      *   - Walkie Talkie
-     *   - Spray Can
      */
     class LC_Drudge : EnemyAI
     {

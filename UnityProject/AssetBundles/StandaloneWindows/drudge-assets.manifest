@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 3724074210
+CRC: 1512635332
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: db3c867be612431cb58f38d3129b45eb
+    Hash: c779d365b2aaae3d2e80f00f16987ee4
   TypeTreeHash:
     serializedVersion: 2
     Hash: f034deb942c3d975082a69754a629c90
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: db3c867be612431cb58f38d3129b45eb
+    Hash: c779d365b2aaae3d2e80f00f16987ee4
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -88,5 +88,5 @@ SerializeReferenceClassIdentifiers:
 - AssemblyName: UnityEngine.CoreModule
   ClassName: UnityEngine.Events.PersistentCallGroup
 Assets:
-- Assets/ExampleEnemy/DrudgeEnemy.asset
+- Assets/Drudge/DrudgeEnemy.asset
 Dependencies: []
