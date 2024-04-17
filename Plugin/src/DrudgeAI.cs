@@ -79,7 +79,7 @@ namespace LC_Drudge {
 
         [Conditional("DEBUG")]
         void LogIfDebugBuild(string text) {
-            LogIfDebugBuild(text);
+            Plugin.Logger.LogInfo(text);
         }
 
         public override void Start() {
