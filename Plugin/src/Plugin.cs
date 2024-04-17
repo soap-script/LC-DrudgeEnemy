@@ -36,6 +36,12 @@ namespace LC_Drudge {
             // We load our assets from our asset bundle.
             var DrudgeEnemy = ModAssets.LoadAsset<EnemyType>("DrudgeEnemy");
 
+            if (DrudgeEnemy == null)
+            {
+                Logger.LogError($"Failed to load Drudge assets properly.");
+                return;
+            }
+
             TerminalNode drudgeNode = ScriptableObject.CreateInstance<TerminalNode>();
             drudgeNode.displayText = "DRUDGE\r\n\r\nSigurd's danger level: 50%\r\n\r\nScientific name: Laborius invictus\r\n\r\n" +
                 "Theorized to be a distant relative of vir colligerus, the \"coil-head\", Drudges are believed to have once been manufactured " +
@@ -58,7 +64,7 @@ namespace LC_Drudge {
             NetworkPrefabs.RegisterNetworkPrefab(DrudgeEnemy.enemyPrefab);
 			Enemies.RegisterEnemy(DrudgeEnemy, DrudgeConfig.spawnWeight.Value, Levels.LevelTypes.All, Enemies.SpawnType.Default, drudgeNode, drudgeKeyword);
             
-            Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
+            Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} - {PluginInfo.PLUGIN_VERSION} is loaded!");
         }
 
         private static void InitializeNetworkBehaviours() {

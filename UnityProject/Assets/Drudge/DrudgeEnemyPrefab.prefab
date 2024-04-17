@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 725523683196432819}
   m_Layer: 19
-  m_Name: PlayerTarget
+  m_Name: PlayerTargetForKill1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -756,6 +756,37 @@ Transform:
   m_Children: []
   m_Father: {fileID: 4389852519768479714}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4609731459331491274
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2680150114083902281}
+  m_Layer: 19
+  m_Name: PlayerTargetForKill2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2680150114083902281
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4609731459331491274}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.0059790662, y: -0.73822606, z: -0.6743624, w: 0.014894864}
+  m_LocalPosition: {x: 0.028, y: 0.516, z: 1.162}
+  m_LocalScale: {x: 0.14999995, y: 0.14999999, z: 0.14999993}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4389852519768479714}
+  m_LocalEulerAnglesHint: {x: -444.773, y: 188.794, z: -7.101}
 --- !u!1 &5797409498720147192
 GameObject:
   m_ObjectHideFlags: 0
@@ -1467,34 +1498,38 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: 0
-      addedObject: {fileID: 9135264659938693915}
+      addedObject: {fileID: 2680150114083902281}
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: 1
-      addedObject: {fileID: 2858639862634195578}
+      addedObject: {fileID: 9135264659938693915}
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: 2
-      addedObject: {fileID: 7008171513725817653}
+      addedObject: {fileID: 2858639862634195578}
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: 3
-      addedObject: {fileID: 7264021673931560886}
+      addedObject: {fileID: 7008171513725817653}
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: 4
-      addedObject: {fileID: 5699555411405659456}
+      addedObject: {fileID: 7264021673931560886}
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: 5
-      addedObject: {fileID: 7210520935342222345}
+      addedObject: {fileID: 5699555411405659456}
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: 6
-      addedObject: {fileID: 4671316544806662402}
+      addedObject: {fileID: 7210520935342222345}
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
       insertIndex: 7
+      addedObject: {fileID: 4671316544806662402}
+    - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 387ef8d072865044581b0a04c137f4a3,
+        type: 3}
+      insertIndex: 8
       addedObject: {fileID: 6620540984347958329}
     - targetCorrespondingSourceObject: {fileID: -991608604700706330, guid: 387ef8d072865044581b0a04c137f4a3,
         type: 3}
@@ -1781,17 +1816,14 @@ MonoBehaviour:
   turnCompass: {fileID: 7264021673931560886}
   attackArea: {fileID: 5699555411405659456}
   grabTarget: {fileID: 8200066176260068024}
-  playerTarget: {fileID: 725523683196432819}
-  drudgeTrigger: {fileID: 5540906395977258467}
-  heldItem: {fileID: 0}
+  playerTargetForKillAnimation1: {fileID: 725523683196432819}
+  playerTargetForKillAnimation2: {fileID: 2680150114083902281}
   footstepSFX: {fileID: 8300000, guid: a1a18c0d2926b5247b32942f11b23dc7, type: 3}
   handCloseSFX: {fileID: 8300000, guid: 027819f9b28383e4f8e381c8a1dcc8b3, type: 3}
   crushingSFX: {fileID: 8300000, guid: 7c02e93bbb24f624f91c26d77c6e9f7c, type: 3}
   drudgeLight: {fileID: 6554694542576629605}
   drudgeLightGlow: {fileID: 587362664587618778}
-  angerLevel: 0
-  angerLevelAccelerator: 0.5
-  timeSinceTargetedPreviousPlayer: 0
+  drudgeTrigger: {fileID: 5540906395977258467}
 --- !u!195 &-4307780945350878767
 NavMeshAgent:
   m_ObjectHideFlags: 0

@@ -28,6 +28,7 @@ namespace LC_Drudge {
      *   - Walk cycle
      *   - Idle animation
      *   - Stun animation
+     *   - Multiple kill animations
      * - Slow down kill sequence to 5 seconds
      * - Better sounds
      * - Better logs for debugging
@@ -43,7 +44,8 @@ namespace LC_Drudge {
         public Transform turnCompass;
         public Transform attackArea;
         public Transform grabTarget;
-        public Transform playerTarget;
+        public Transform playerTargetForKillAnimation1;
+        public Transform playerTargetForKillAnimation2;
         enum State {
             SearchingForPlayer,
             FollowPlayer,
@@ -71,6 +73,8 @@ namespace LC_Drudge {
         private ulong? previousTargetPlayerId;
         private float timeSinceTargetedPreviousPlayer = 0f;
         private ulong? currentTargetPlayerId;
+        private System.Random enemyRandom;
+        private int currentKillAnimationIndex = 0;
 
         private DoorLock closestDoor;
         private Coroutine killingCoroutine;
@@ -91,6 +95,7 @@ namespace LC_Drudge {
             currentBehaviourStateIndex = (int)State.SearchingForPlayer;
             drudgeTrigger.onInteract.AddListener(GrabScrapFromPlayer);
             drudgeLight.enabled = true;
+            enemyRandom = new System.Random(StartOfRound.Instance.randomMapSeed + thisEnemyIndex);
 
             StartSearch(transform.position);
         }
@@ -206,13 +211,21 @@ namespace LC_Drudge {
         {
             if (inSpecialAnimationWithPlayer != null)
             {
-                Vector3 distanceBetweenPlayerTransformToCamera = inSpecialAnimationWithPlayer.transform.position - inSpecialAnimationWithPlayer.gameplayCamera.transform.position;
-                inSpecialAnimationWithPlayer.transform.position = new Vector3(
-                    playerTarget.position.x + distanceBetweenPlayerTransformToCamera.x,
-                    playerTarget.position.y + distanceBetweenPlayerTransformToCamera.y,
-                    playerTarget.position.z + distanceBetweenPlayerTransformToCamera.z
-                );
-                inSpecialAnimationWithPlayer.transform.rotation = playerTarget.rotation;
+                Transform targetPlayerPositionForAnimation;
+                if (currentKillAnimationIndex == 0)
+                {
+                    targetPlayerPositionForAnimation = playerTargetForKillAnimation1;
+                } else
+                {
+                    targetPlayerPositionForAnimation = playerTargetForKillAnimation2;
+                }
+                    Vector3 distanceBetweenPlayerTransformToCamera = inSpecialAnimationWithPlayer.transform.position - inSpecialAnimationWithPlayer.gameplayCamera.transform.position;
+                    inSpecialAnimationWithPlayer.transform.position = new Vector3(
+                        targetPlayerPositionForAnimation.position.x + distanceBetweenPlayerTransformToCamera.x,
+                        targetPlayerPositionForAnimation.position.y + distanceBetweenPlayerTransformToCamera.y,
+                        targetPlayerPositionForAnimation.position.z + distanceBetweenPlayerTransformToCamera.z
+                    );
+                    inSpecialAnimationWithPlayer.transform.rotation = targetPlayerPositionForAnimation.rotation;
             }
         }
 
@@ -945,12 +958,20 @@ namespace LC_Drudge {
                 inSpecialAnimationWithPlayer = player;
                 inSpecialAnimationWithPlayer.inSpecialInteractAnimation = true;
                 inSpecialAnimationWithPlayer.inAnimationWithEnemy = this;
-                killingCoroutine = StartCoroutine(KillPlayerAnimation(player)); 
+                currentKillAnimationIndex = enemyRandom.Next(0, 2);
+                if (currentKillAnimationIndex == 0)
+                {
+                    killingCoroutine = StartCoroutine(KillPlayerAnimation1(player));
+                }
+                else
+                {
+                    killingCoroutine = StartCoroutine(KillPlayerAnimation2(player));
+                }
             }
         }
 
 
-        private IEnumerator KillPlayerAnimation(PlayerControllerB player)
+        private IEnumerator KillPlayerAnimation1(PlayerControllerB player)
         {
             DoAnimationClientRPC("startKill");
             inSpecialAnimation = true;
@@ -965,6 +986,47 @@ namespace LC_Drudge {
             }
             player.DamagePlayer(player.health - 1, causeOfDeath: CauseOfDeath.Crushing, deathAnimation: 1);
             yield return new WaitForSeconds(secondsToCrush);
+            if (player.inAnimationWithEnemy == this && !player.isPlayerDead)
+            {
+                inSpecialAnimationWithPlayer = null;
+                player.KillPlayer(Vector3.zero, true, CauseOfDeath.Crushing, 1);
+                player.inSpecialInteractAnimation = false;
+                player.inAnimationWithEnemy = null;
+                yield return new WaitForSeconds(0.8f);
+            }
+            inSpecialAnimationWithPlayer = null;
+            inSpecialAnimation = false;
+
+            DoAnimationClientRPC("startPickUp");
+
+            GrabbableObject playerBody = player.deadBody?.grabBodyObject;
+
+            if (playerBody != null && playerBody.grabbable)
+            {
+                SetItemAsHeld(playerBody.GetComponent<NetworkObject>());
+            }
+
+            SwitchToSearchState();
+            killingCoroutine = null;
+            yield break;
+        }
+
+        private IEnumerator KillPlayerAnimation2(PlayerControllerB player)
+        {
+            DoAnimationClientRPC("startKill2");
+            inSpecialAnimation = true;
+
+            creatureVoice.PlayOneShot(crushingSFX);
+            float secondsToCrush = 2f;
+            while (player.health > 20 && secondsToCrush > 0)
+            {
+                player.DamagePlayer(20, causeOfDeath: CauseOfDeath.Crushing, deathAnimation: 1);
+                secondsToCrush -= 0.5f;
+                yield return new WaitForSeconds(0.5f);
+            }
+            player.DamagePlayer(player.health - 1, causeOfDeath: CauseOfDeath.Crushing, deathAnimation: 1);
+            yield return new WaitForSeconds(secondsToCrush);
+            yield return new WaitForSeconds(0.2f);
             if (player.inAnimationWithEnemy == this && !player.isPlayerDead)
             {
                 inSpecialAnimationWithPlayer = null;
