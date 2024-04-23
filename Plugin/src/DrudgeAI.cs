@@ -33,9 +33,10 @@ namespace LC_Drudge {
      * - Better sounds
      * - Better logs for debugging
      * - Network testing
+     * - Playing a noisemaker prop while it is holding noisemaker prop will make it use the item
+     * - Crouching/sneaking animation when the target player is crouching/sneaking
      * - Item-specific logic
      *   - Shovel
-     *   - Walkie Talkie
      */
     class LC_Drudge : EnemyAI
     {
@@ -78,7 +79,6 @@ namespace LC_Drudge {
 
         private DoorLock closestDoor;
         private Coroutine killingCoroutine;
-        private Coroutine walkieTalkieCoroutine;
         private GrabbableObject heldItem;
 
         [Conditional("DEBUG")]
@@ -841,23 +841,6 @@ namespace LC_Drudge {
                 // Spray paint handling is a little buggy right now. Need to actually get it to spray.
                 return;
             }
-            if (heldItem is WalkieTalkie)
-            {
-                if (heldItem.isBeingUsed && GetCurrentTargetPlayer() != null)
-                {
-                    if (walkieTalkieCoroutine != null)
-                    {
-                        LogIfDebugBuild("Stopping walkie talkie coroutine");
-                        StopCoroutine(walkieTalkieCoroutine);
-                        walkieTalkieCoroutine = null;
-                    } else
-                    {
-                        LogIfDebugBuild("Starting walkie talkie coroutine");
-                        walkieTalkieCoroutine = StartCoroutine(WalkieTalkieCoroutine());
-                    }
-                }
-                return;
-            }
             if (heldItem is ShotgunItem)
             {
                 ShotgunItem shotgun = heldItem as ShotgunItem;
@@ -876,37 +859,6 @@ namespace LC_Drudge {
                 LogIfDebugBuild($"Encountered an error while attempting to use an item generically. Name: ${heldItem.name}. Printing error below");
                 LogIfDebugBuild($"{e}");
             }
-        }
-
-        private IEnumerator WalkieTalkieCoroutine()
-        {
-            if (!heldItem.isBeingUsed || GetCurrentTargetPlayer() == null)
-            {
-                LogIfDebugBuild("WalkieTalkieCoroutine -- Failed to meet initial requirements");
-                walkieTalkieCoroutine = null;
-                yield break;
-            }
-            while (heldItem is WalkieTalkie)
-            {
-                WalkieTalkie walkie = heldItem as WalkieTalkie;
-                PlayerControllerB currentWalkieTarget = GetCurrentTargetPlayer();
-                currentWalkieTarget.holdingWalkieTalkie = true;
-                walkie.SetPlayerSpeakingOnWalkieTalkieServerRpc((int)currentWalkieTarget.playerClientId);
-                LogIfDebugBuild("WalkieTalkieCoroutine -- Set current target player as walkie talkie owner.");
-                yield return new WaitUntil(() => !(heldItem is WalkieTalkie) || GetCurrentTargetPlayer() == null || GetCurrentTargetPlayer().playerClientId != previousTargetPlayerId);
-                currentWalkieTarget.holdingWalkieTalkie = false;
-                walkie.UnsetPlayerSpeakingOnWalkieTalkieServerRpc((int)currentWalkieTarget.playerClientId); 
-                LogIfDebugBuild("WalkieTalkieCoroutine -- Lost current target player or no longer holding walkie. Unsetting them as walie talkie owner.");
-                if (GetCurrentTargetPlayer() == null)
-                {
-                    yield return new WaitUntil(() => !(heldItem is WalkieTalkie) || GetCurrentTargetPlayer() != null);
-                    LogIfDebugBuild("WalkieTalkieCoroutine -- Found new target player.");
-                }
-            }
-
-            LogIfDebugBuild("WalkieTalkieCoroutine -- No longer holding walkie talkie. Kill coroutine.");
-            walkieTalkieCoroutine = null;
-            yield break;
         }
 
         [ServerRpc]
