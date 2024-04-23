@@ -34,7 +34,6 @@ namespace LC_Drudge {
      * - Better logs for debugging
      * - Network testing
      * - Playing a noisemaker prop while it is holding noisemaker prop will make it use the item
-     * - Crouching/sneaking animation when the target player is crouching/sneaking
      * - Item-specific logic
      *   - Shovel
      */
@@ -906,7 +905,7 @@ namespace LC_Drudge {
 
         public void DrudgePlayFootstepAudio()
         {
-            creatureVoice.PlayOneShot(footstepSFX);
+            creatureVoice.PlayOneShot(footstepSFX, crouching ? 0.15f : 1.0f);
         }
 
         public void DrudgePlayHandCloseAudio()
