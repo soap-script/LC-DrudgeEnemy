@@ -305,6 +305,22 @@ namespace LC_Drudge {
             if (currentBehaviourStateIndex == (int)State.FollowPlayer)
             {
                 crouching = GetCurrentTargetPlayer().isCrouching;
+                if (GetCurrentTargetPlayer().currentlyHeldObjectServer is NoisemakerProp && heldItem is NoisemakerProp)
+                {
+                    GrabbableObject playerHeldItem = GetCurrentTargetPlayer().currentlyHeldObjectServer;
+                    /**
+                     * This is a weird way to check for the noisemaker prop being used, but there's a couple good reasons:
+                     * - isBeingUsed is a bool that toggles on/off when the player uses the noisemaker, so that isn't the best thing to check
+                     * - Checking the currentUseCooldown as a percentage of the current use cooldown allows us to offset the item activation, so the enemy doesn't use the
+                     *   noisemaker prop immediately after the player does
+                     * - Because the heldItem noisemaker prop also has it's own internal cooldown, this essentially gives us built in functionality to only use the item
+                     *   once before the player is able to use the noisemaker prop again
+                     */
+                    if (playerHeldItem.currentUseCooldown > playerHeldItem.useCooldown * 0.1f && playerHeldItem.currentUseCooldown < playerHeldItem.useCooldown * 0.25f)
+                    {
+                        UseHeldItemServerRPC();
+                    }
+                }
             } else
             {
                 crouching = false;
