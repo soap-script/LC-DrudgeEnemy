@@ -69,6 +69,8 @@ namespace LC_Drudge {
         private float velX;
         private float velZ;
         private bool stunned = false;
+        private bool crouching = false;
+        private float crouchingSpeedMultiplier = 0.5f;
         private float angerLevel = 0f;
         private float angerLevelAccelerator = 1f;
         private ulong? previousTargetPlayerId;
@@ -123,12 +125,21 @@ namespace LC_Drudge {
 
             CalculateLocalAnimationVelocityAndDirection();
 
+            // Updates the light source on the drudge's head (color and intensity)
             UpdateLightSource();
+            // Updates the interact trigger based on if the local player can give the drudge an item
             UpdateInteractTrigger();
+            // Updates the players position for kill animations
             UpdateSpecialAnimation();
+            // Decreases or Increases the anger level based on current state
             UpdateAngerLevel();
+            // Sets the EnemyAI variable for making the enemy chase a player based on current state
             UpdateMovingTowardsTargetPlayer();
+            // Keeps track of the targetting cooldown for if the enemy can target the previously targetted player
             UpdatePreviousTargetPlayer();
+            // Listens for signals from the player and responds 
+            UpdatePlayerCues();
+
             float carryWeightMultiplier = 1f;
             if (heldItem != null)
             {
@@ -137,11 +148,17 @@ namespace LC_Drudge {
 
             switch(currentBehaviourStateIndex) {
                 case (int)State.SearchingForPlayer:
-                    agent.speed = 3f * carryWeightMultiplier;
+                    agent.speed = 3f;
+                    agent.speed *= carryWeightMultiplier;
                     break;
 
                 case (int)State.FollowPlayer:
-                    agent.speed = 5f * carryWeightMultiplier;
+                    agent.speed = 5f;
+                    agent.speed *= carryWeightMultiplier;
+                    if (crouching)
+                    {
+                        agent.speed *= crouchingSpeedMultiplier;
+                    }
                     break;
 
                 case (int)State.ChasingPlayer:
@@ -151,8 +168,6 @@ namespace LC_Drudge {
                 case (int)State.AngrilyLookingAtPlayer:
                     agent.speed = 0f;
 
-                    LogIfDebugBuild($"Anger level -- ${angerLevel}");
-                    angerLevel += Time.deltaTime * angerLevelAccelerator;
                     if (angerLevel >= 1)
                     {
                         GetCurrentTargetPlayer().JumpToFearLevel(1f, true);
@@ -236,6 +251,10 @@ namespace LC_Drudge {
             {
                 LogIfDebugBuild($"No reason to be angry");
                 angerLevel -= Time.deltaTime * angerLevelAccelerator;
+            } else if ( currentBehaviourStateIndex == (int)State.AngrilyLookingAtPlayer)
+            {
+                LogIfDebugBuild($"Anger level -- ${angerLevel}");
+                angerLevel += Time.deltaTime * angerLevelAccelerator;
             }
         }
 
@@ -280,6 +299,18 @@ namespace LC_Drudge {
                     timeSinceTargetedPreviousPlayer += Time.deltaTime;
                 }
             }
+        }
+
+        void UpdatePlayerCues()
+        {
+            if (currentBehaviourStateIndex == (int)State.FollowPlayer)
+            {
+                crouching = GetCurrentTargetPlayer().isCrouching;
+            } else
+            {
+                crouching = false;
+            }
+            creatureAnimator.SetBool("crouching", crouching);
         }
 
         public override void DoAIInterval() {
